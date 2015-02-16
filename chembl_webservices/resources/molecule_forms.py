@@ -1,7 +1,7 @@
 __author__ = 'mnowotka'
 
 import time
-from chembl_new_webservices.core.utils import CHAR_FILTERS
+from chembl_webservices.core.utils import CHAR_FILTERS
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import MultipleObjectsReturned
 from tastypie import http
@@ -11,10 +11,10 @@ from tastypie.exceptions import BadRequest
 from tastypie.exceptions import Unauthorized
 from django.conf.urls import url
 from django.db.models import Q
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.meta import ChemblResourceMeta
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_new_webservices.core.resource import WS_DEBUG
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.core.resource import WS_DEBUG
 try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:

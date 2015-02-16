@@ -2,9 +2,9 @@ __author__ = 'mnowotka'
 
 from tastypie import fields
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_new_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.core.meta import ChemblResourceMeta
 try:
     from chembl_compatibility.models import TargetComponents
 except ImportError:
@@ -36,7 +36,7 @@ class ProteinClassificationResource(ChemblModelResource):
 class TargetComponentsResource(ChemblModelResource):
 
     protein_classifications = fields.ToManyField(
-        'chembl_new_webservices.resources.target_components.ProteinClassificationResource',
+        'chembl_webservices.resources.target_components.ProteinClassificationResource',
         'proteinclassification_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):

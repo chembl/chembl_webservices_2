@@ -4,7 +4,7 @@ from tastypie.authentication import Authentication
 from tastypie.authorization import Authorization
 from tastypie.throttle import BaseThrottle
 from tastypie.cache import SimpleCache
-from chembl_new_webservices.core.pagination import ChEMBLPaginator
+from chembl_webservices.core.pagination import ChEMBLPaginator
 
 #-----------------------------------------------------------------------------------------------------------------------
 

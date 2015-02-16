@@ -4,10 +4,10 @@ from tastypie import fields
 from tastypie.utils import trailing_slash
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
 from django.conf.urls import url
-from chembl_new_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_new_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.core.meta import ChemblResourceMeta
 from django.core.exceptions import ObjectDoesNotExist
 from tastypie.exceptions import Unauthorized
 from django.db.models.constants import LOOKUP_SEP
@@ -149,19 +149,19 @@ class MoleculePropertiesResource(ChemblModelResource):
 class MoleculeResource(ChemblModelResource):
 
     molecule_chembl_id = fields.CharField('chembl_id')
-    molecule_properties = fields.ForeignKey('chembl_new_webservices.resources.molecule.MoleculePropertiesResource',
+    molecule_properties = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculePropertiesResource',
         'compoundproperties', full=True, null=True, blank=True)
-    molecule_hierarchy = fields.ForeignKey('chembl_new_webservices.resources.molecule.MoleculeHierarchyResource',
+    molecule_hierarchy = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculeHierarchyResource',
         'moleculehierarchy', full=True, null=True, blank=True)
-    molecule_structures = fields.ForeignKey('chembl_new_webservices.resources.molecule.MoleculeStructuresResource',
+    molecule_structures = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculeStructuresResource',
         'compoundstructures', full=True, null=True, blank=True)
-    molecule_synonyms = fields.ToManyField('chembl_new_webservices.resources.molecule.MoleculeSynonymsResource',
+    molecule_synonyms = fields.ToManyField('chembl_webservices.resources.molecule.MoleculeSynonymsResource',
         'moleculesynonyms_set', full=True, null=True, blank=True)
-    biocomponents = fields.ToManyField('chembl_new_webservices.resources.bio_component.BiotherapeuticComponentsResource',
+    biocomponents = fields.ToManyField('chembl_webservices.resources.bio_component.BiotherapeuticComponentsResource',
         'biotherapeutics__bio_component_sequences', full=True, null=True, blank=True)
     helm_notation = fields.CharField('biotherapeutics__helm_notation', null=True, blank=True)
     biotherapeutic = fields.BooleanField('biotherapeutics', null=True, blank=True)
-    atc_classifications = fields.ToManyField('chembl_new_webservices.resources.atc.AtcResource',
+    atc_classifications = fields.ToManyField('chembl_webservices.resources.atc.AtcResource',
         'atcclassification_set', full=False, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):

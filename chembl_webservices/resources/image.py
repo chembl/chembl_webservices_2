@@ -13,11 +13,11 @@ from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from chembl_beaker.beaker.core_apps.jsonImages.jsonCanvas import MolToJSON
 from chembl_beaker.beaker.draw import cairoCanvas
 from chembl_beaker.beaker import draw
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.resource import WS_DEBUG
-from chembl_new_webservices.core.meta import ChemblResourceMeta
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_new_webservices.dis import SineWarp
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.resource import WS_DEBUG
+from chembl_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.dis import SineWarp
 try:
     from chembl_compatibility.models import CompoundStructures
 except ImportError:

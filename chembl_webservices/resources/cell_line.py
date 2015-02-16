@@ -2,10 +2,10 @@ __author__ = 'mnowotka'
 
 from tastypie import fields
 from tastypie.utils import trailing_slash
-from chembl_new_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.meta import ChemblResourceMeta
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from django.conf.urls import url
 from django.core.exceptions import ObjectDoesNotExist
 from tastypie.exceptions import Unauthorized

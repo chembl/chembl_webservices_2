@@ -1,36 +1,36 @@
 __author__ = 'mnowotka'
 
 try:
-    __version__ = __import__('pkg_resources').get_distribution('chembl_new_webservices').version
+    __version__ = __import__('pkg_resources').get_distribution('chembl_webservices').version
 except Exception as e:
     __version__ = 'development'
 
-from chembl_new_webservices.core.fields import monkeypatch_tastypie_field
-from chembl_new_webservices.core.api import ChEMBLApi
-from chembl_new_webservices.resources.activities import ActivityResource
-from chembl_new_webservices.resources.docs import DocsResource
-from chembl_new_webservices.resources.atc import AtcResource
-from chembl_new_webservices.resources.assays import AssayResource
-from chembl_new_webservices.resources.binding_site import BindingSiteResource
-from chembl_new_webservices.resources.binding_site import SiteComponentsResource
-from chembl_new_webservices.resources.binding_site import ComponentDomainsResource
-from chembl_new_webservices.resources.bio_component import BiotherapeuticComponentsResource
-from chembl_new_webservices.resources.cell_line import CellLineResource
-from chembl_new_webservices.resources.mechanism import MechanismResource
-from chembl_new_webservices.resources.protein_class import ProteinClassResource
-from chembl_new_webservices.resources.source import SourceResource
-from chembl_new_webservices.resources.molecule import MoleculeResource
-from chembl_new_webservices.resources.molecule_forms import MoleculeFormsResource
-from chembl_new_webservices.resources.target import TargetResource
-from chembl_new_webservices.resources.target_components import TargetComponentsResource
-from chembl_new_webservices.resources.status import StatusResource
-from chembl_new_webservices.resources.image import ImageResource
-from chembl_new_webservices.resources.substructure import SubstructureResource
-from chembl_new_webservices.resources.similarity import SimilarityResource
+from chembl_webservices.core.fields import monkeypatch_tastypie_field
+from chembl_webservices.core.api import ChEMBLApi
+from chembl_webservices.resources.activities import ActivityResource
+from chembl_webservices.resources.docs import DocsResource
+from chembl_webservices.resources.atc import AtcResource
+from chembl_webservices.resources.assays import AssayResource
+from chembl_webservices.resources.binding_site import BindingSiteResource
+from chembl_webservices.resources.binding_site import SiteComponentsResource
+from chembl_webservices.resources.binding_site import ComponentDomainsResource
+from chembl_webservices.resources.bio_component import BiotherapeuticComponentsResource
+from chembl_webservices.resources.cell_line import CellLineResource
+from chembl_webservices.resources.mechanism import MechanismResource
+from chembl_webservices.resources.protein_class import ProteinClassResource
+from chembl_webservices.resources.source import SourceResource
+from chembl_webservices.resources.molecule import MoleculeResource
+from chembl_webservices.resources.molecule_forms import MoleculeFormsResource
+from chembl_webservices.resources.target import TargetResource
+from chembl_webservices.resources.target_components import TargetComponentsResource
+from chembl_webservices.resources.status import StatusResource
+from chembl_webservices.resources.image import ImageResource
+from chembl_webservices.resources.substructure import SubstructureResource
+from chembl_webservices.resources.similarity import SimilarityResource
 from django.conf import settings
 
 monkeypatch_tastypie_field()
-DEFAULT_API_NAME='new_chemblws'
+DEFAULT_API_NAME='chembl_ws'
 
 try:
     api_name = settings.WS_NAME

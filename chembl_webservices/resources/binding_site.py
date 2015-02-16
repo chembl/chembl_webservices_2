@@ -2,10 +2,10 @@ __author__ = 'mnowotka'
 
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
 from tastypie import fields
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_new_webservices.core.meta import ChemblResourceMeta
-from chembl_new_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
 try:
     from chembl_compatibility.models import BindingSites
 except ImportError:
@@ -33,7 +33,7 @@ class ComponentDomainsResource(ChemblModelResource):
 
 class SiteComponentsResource(ChemblModelResource):
 
-    domain = fields.ForeignKey('chembl_new_webservices.resources.binding_site.ComponentDomainsResource',
+    domain = fields.ForeignKey('chembl_webservices.resources.binding_site.ComponentDomainsResource',
         'domain', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -46,7 +46,7 @@ class SiteComponentsResource(ChemblModelResource):
 
 class BindingSiteResource(ChemblModelResource):
 
-    site_components = fields.ManyToManyField('chembl_new_webservices.resources.binding_site.SiteComponentsResource',
+    site_components = fields.ManyToManyField('chembl_webservices.resources.binding_site.SiteComponentsResource',
         'sitecomponents_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):

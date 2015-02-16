@@ -5,7 +5,7 @@ from tastypie.utils import trailing_slash
 from django.conf.urls import url
 from django.core.urlresolvers import NoReverseMatch
 from django.core.exceptions import MultipleObjectsReturned
-from chembl_new_webservices.resources.molecule import MoleculeResource
+from chembl_webservices.resources.molecule import MoleculeResource
 from chembl_core_model.models import CompoundMols
 from chembl_core_model.models import MoleculeDictionary
 try:

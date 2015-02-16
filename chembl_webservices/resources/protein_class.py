@@ -2,10 +2,10 @@ __author__ = 'mnowotka'
 
 from django.conf.urls import url
 from tastypie.utils import trailing_slash
-from chembl_new_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_new_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.core.meta import ChemblResourceMeta
 try:
     from chembl_compatibility.models import ProteinFamilyClassification
 except ImportError:

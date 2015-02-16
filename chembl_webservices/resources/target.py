@@ -2,10 +2,10 @@ __author__ = 'mnowotka'
 
 from tastypie import fields
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
-from chembl_new_webservices.core.resource import ChemblModelResource
-from chembl_new_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_new_webservices.core.meta import ChemblResourceMeta
-from chembl_new_webservices.core.utils import CHAR_FILTERS, FLAG_FILTERS, NUMBER_FILTERS
+from chembl_webservices.core.resource import ChemblModelResource
+from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from chembl_webservices.core.meta import ChemblResourceMeta
+from chembl_webservices.core.utils import CHAR_FILTERS, FLAG_FILTERS, NUMBER_FILTERS
 from chembl_core_model.models import TargetDictionary
 from chembl_core_model.models import TargetComponents
 
@@ -41,7 +41,7 @@ class TargetResource(ChemblModelResource):
 
     target_chembl_id = fields.CharField('chembl_id')
     target_type = fields.CharField('target_type_id')
-    target_components = fields.ToManyField('chembl_new_webservices.resources.target.TargetComponentsResource',
+    target_components = fields.ToManyField('chembl_webservices.resources.target.TargetComponentsResource',
         'targetcomponents_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
