@@ -45,6 +45,7 @@ class TargetComponentsResource(ChemblModelResource):
         resource_name = 'target_component'
         collection_name = 'target_components'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        prefetch_related = ['proteinclassification_set']
 
         fields = (
             'accession',

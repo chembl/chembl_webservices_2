@@ -14,6 +14,7 @@ class ChemblResourceMeta:
     detail_uri_name = 'pk'
     include_resource_uri = False
     allowed_methods = ['get']
+    prefetch_related = []
     default_format = 'application/xml'
     authentication = Authentication()
     authorization = Authorization()

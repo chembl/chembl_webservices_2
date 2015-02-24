@@ -16,6 +16,7 @@ except ImportError:
 
 class ActivityResource(ChemblModelResource):
 
+    bao_format = fields.CharField('assay__bao_format', null=True, blank=True)
     data_validity_comment = fields.CharField('data_validity_comment__description', null=True, blank=True)
     document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
     molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
@@ -25,8 +26,8 @@ class ActivityResource(ChemblModelResource):
     assay_chembl_id = fields.CharField('assay__chembl_id', null=True, blank=True)
     assay_type = fields.CharField('assay__assay_type_id', null=True, blank=True)
     assay_description = fields.CharField('assay__description', null=True, blank=True)
-    document_year = fields.IntegerField('assay__doc__year', null=True, blank=True)
-    document_journal = fields.CharField('assay__doc__journal', null=True, blank=True)
+    document_year = fields.IntegerField('doc__year', null=True, blank=True)
+    document_journal = fields.CharField('doc__journal', null=True, blank=True)
     record_id = fields.IntegerField('record_id', null=True, blank=True)
     canonical_smiles = fields.CharField('molecule__compoundstructures__canonical_smiles', null=True, blank=True)
 
@@ -35,6 +36,7 @@ class ActivityResource(ChemblModelResource):
         resource_name = 'activity'
         collection_name = 'activities'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        prefetch_related = ['assay', 'doc', 'molecule', 'molecule__compoundstructures', 'data_validity_comment', 'assay__target']
         fields = (
             'activity_comment',
             'activity_id',

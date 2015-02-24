@@ -37,6 +37,7 @@ class MoleculeFormsResource(ChemblModelResource):
             'molecule_chembl_id' : CHAR_FILTERS,
             'parent' : CHAR_FILTERS,
         }
+        prefetch_related = ['molecule', 'parent_molecule']
         resource_name = 'molecule_form'
         collection_name = 'molecule_forms'
         detail_uri_name = 'molecule__chembl_id'
@@ -190,7 +191,7 @@ class MoleculeFormsResource(ChemblModelResource):
 
         for identifier in obj_identifiers:
             try:
-                obj = self.obj_get(bundle=base_bundle, **{self._meta.detail_uri_name: identifier})
+                obj, _ = self.cached_obj_get(bundle=base_bundle, **{self._meta.detail_uri_name: identifier})
                 bundle = self.build_bundle(obj=obj, request=request)
                 bundle = self.full_dehydrate(bundle, for_list=True)
                 bundle = self.alter_detail_data_to_serialize(request, bundle)

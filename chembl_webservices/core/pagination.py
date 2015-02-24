@@ -119,10 +119,10 @@ class ChEMBLPaginator(Paginator):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def get_meta(self):
+    def get_meta(self, fetchCount=True):
         limit = self.get_limit()
         offset = self.get_offset()
-        count = self.get_count()
+        count = self.get_count() if fetchCount else None
         meta = {
             'offset': offset,
             'limit': limit,

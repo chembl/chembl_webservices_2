@@ -173,7 +173,7 @@ class MoleculeResource(ChemblModelResource):
         serializer = ChEMBLApiSerializer(resource_name,
             {collection_name : resource_name, 'biocomponents':'biocomponent', 'molecule_synonyms': 'synonym', 'atc_classifications': 'level5'})
         detail_uri_name = 'chembl_id'
-
+        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy', 'compoundstructures', 'moleculehierarchy__parent_molecule']
         fields = (
             'atc_classifications',
             'availability_type',
@@ -302,7 +302,7 @@ class MoleculeResource(ChemblModelResource):
 
         for identifier in obj_identifiers:
             try:
-                obj = self.obj_get(bundle=base_bundle, **{detail_uri_name: identifier})
+                obj, _ = self.cached_obj_get(bundle=base_bundle, **{detail_uri_name: identifier})
                 bundle = self.build_bundle(obj=obj, request=request)
                 bundle = self.full_dehydrate(bundle, for_list=True)
                 objects.append(bundle)

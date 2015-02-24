@@ -1,19 +1,32 @@
 __author__ = 'mnowotka'
 
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
+import time
+import warnings
+from collections import OrderedDict
 from tastypie import fields
 from tastypie.exceptions import BadRequest
 from tastypie.utils import trailing_slash
+from django.db.models.constants import LOOKUP_SEP
+from django.db import DatabaseError
+from django.conf import settings
 from django.conf.urls import url
 from django.core.urlresolvers import NoReverseMatch
 from django.core.exceptions import MultipleObjectsReturned
 from chembl_webservices.resources.molecule import MoleculeResource
+from tastypie.exceptions import InvalidSortError
 from chembl_core_model.models import CompoundMols
 from chembl_core_model.models import MoleculeDictionary
 try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:
     from chembl_core_model.models import MoleculeHierarchy
+
+try:
+    WS_DEBUG = settings.WS_DEBUG
+except AttributeError:
+    WS_DEBUG = False
+
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -61,6 +74,13 @@ class SimilarityResource(MoleculeResource):
         similarity = kwargs.pop('similarity')
         if not similarity:
             raise BadRequest("Similarity parameter is required.")
+        else:
+            try:
+                sim = int(similarity)
+                if sim < 70 or sim > 100:
+                    raise BadRequest("Invalid Similarity Score supplied: %s" % similarity)
+            except ValueError:
+                raise BadRequest("Invalid Similarity Score supplied: %s" % similarity)
         if not smiles:
             if chembl_id:
                 mol_filters = {'chembl_id':chembl_id}
@@ -82,7 +102,15 @@ class SimilarityResource(MoleculeResource):
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
         similar = CompoundMols.objects.similar_to(smiles, similarity).values_list('molecule_id', 'similarity')
-        similarity_map = dict(similar)
+
+        try:
+            similarity_map = OrderedDict(sorted(similar, key=lambda x:x[1]))
+        except DatabaseError as e:
+            msg = e.message
+            if 'MDL-1622' in str(msg):
+                raise BadRequest("Input string %s is not a valid SMILES string" % smiles)
+            else:
+                return self._handle_500(self, bundle.request, e)
 
         filters = {
             'chembl__entity_type':'COMPOUND',
@@ -100,9 +128,157 @@ class SimilarityResource(MoleculeResource):
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
         if distinct:
             objects = objects.distinct()
-        for obj in objects:
-            obj.similarity = similarity_map[obj.pk]
+        request = bundle.request
+        all_request_params = request.GET.copy()
+        all_request_params.update(request.POST)
+        objects = self.apply_sorting(objects, similarity_map, options=all_request_params)
         return self.authorized_read_list(objects, bundle)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def cached_obj_get_list(self, request=None, **kwargs):
+        """
+        A version of ``obj_get_list`` that uses the cache as a means to get
+        commonly-accessed data faster.
+        """
+
+        kwargs = self.unqote_args(kwargs)
+
+        cache_key = self.generate_cache_key('list', **kwargs)
+        get_failed = False
+        in_cache = True
+
+        try:
+            obj_list = self._meta.cache.get(cache_key)
+        except Exception:
+            obj_list = None
+            get_failed = True
+            self.log.error('Caching get exception', exc_info=True, extra={'request': request,})
+
+        if obj_list is None:
+            in_cache = False
+            obj_list = self.obj_get_list(request=request, **kwargs)
+            if not get_failed:
+                try:
+                    self._meta.cache.set(cache_key, obj_list)
+                except Exception:
+                    self.log.error('Caching set exception', exc_info=True, extra={'request': request,})
+
+        return obj_list, in_cache
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def get_list(self, request, **kwargs):
+        """
+        Returns a serialized list of resources.
+
+        Calls ``obj_get_list`` to provide the data, then handles that result
+        set and serializes it.
+
+        Should return a HttpResponse (200 OK).
+        """
+        # TODO: Uncached for now. Invalidation that works for everyone may be
+        #       impossible.
+        start = time.time()
+        base_bundle = self.build_bundle(request=request)
+        objects, in_cache = self.cached_obj_get_list(bundle=base_bundle, **self.remove_api_resource_names(kwargs))
+
+        paginator_info = {'limit': int(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', 20))), 'offset': int(kwargs.pop('offset', 0))}
+
+        paginator = self._meta.paginator_class(paginator_info, objects, resource_uri=self.get_resource_uri(),
+            limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
+                method=request.method)
+        to_be_serialized = paginator.page()
+
+        # Dehydrate the bundles in preparation for serialization.
+        bundles = []
+
+        for obj in to_be_serialized[self._meta.collection_name]:
+            bundle = self.build_bundle(obj=obj, request=request)
+            bundles.append(self.full_dehydrate(bundle, for_list=True))
+
+        to_be_serialized[self._meta.collection_name] = bundles
+        to_be_serialized = self.alter_list_data_to_serialize(request, to_be_serialized)
+        res = self.create_response(request, to_be_serialized)
+        if WS_DEBUG:
+            end = time.time()
+            res['X-ChEMBL-in-cache'] = in_cache
+            res['X-ChEMBL-retrieval-time'] = end - start
+        return res
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def apply_sorting(self, obj_list, similarity_map, options=None):
+        """
+        Given a dictionary of options, apply some ORM-level sorting to the
+        provided ``QuerySet``.
+
+        Looks for the ``order_by`` key and handles either ascending (just the
+        field name) or descending (the field name with a ``-`` in front).
+
+        The field name should be the resource field, **NOT** model field.
+        """
+        if options is None:
+            options = {}
+
+        parameter_name = 'order_by'
+
+        if not 'order_by' in options:
+            if not 'sort_by' in options:
+                # Nothing to alter the order. Return what we've got.
+                options['order_by'] = '-similarity'
+            else:
+                warnings.warn("'sort_by' is a deprecated parameter. Please use 'order_by' instead.")
+                parameter_name = 'sort_by'
+
+        order_by_args = []
+
+        if hasattr(options, 'getlist'):
+            order_bits = options.getlist(parameter_name)
+        else:
+            order_bits = options.get(parameter_name)
+
+            if not isinstance(order_bits, (list, tuple)):
+                order_bits = [order_bits]
+
+        if (order_bits.index('similarity') == 0 if 'similarity' in order_bits else False) or \
+                    (order_bits.index('-similarity') == 0 if '-similarity' in order_bits else False):
+            obj_list = self.prefetch_related(obj_list)
+            for obj in obj_list:
+                sim = similarity_map[obj.molregno]
+                obj.similarity = sim
+                similarity_map[obj.molregno] = obj
+            vals = [sim for sim in similarity_map.values() if type(sim) == MoleculeDictionary]
+            return vals if 'similarity' in order_bits else list(reversed(vals))
+
+        else:
+
+            for order_by in order_bits:
+                order_by_bits = order_by.split(LOOKUP_SEP)
+
+                field_name = order_by_bits[0]
+                order = ''
+
+                if order_by_bits[0].startswith('-'):
+                    field_name = order_by_bits[0][1:]
+                    order = '-'
+
+                if not field_name in self.fields:
+                    # It's not a field we know about. Move along citizen.
+                    raise InvalidSortError("No matching '%s' field for ordering on." % field_name)
+
+                if not field_name in self._meta.ordering:
+                    raise InvalidSortError("The '%s' field does not allow ordering." % field_name)
+
+                if self.fields[field_name].attribute is None:
+                    raise InvalidSortError("The '%s' field has no 'attribute' for ordering with." % field_name)
+
+                order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] + order_by_bits[1:])))
+
+            obj_list = self.prefetch_related(obj_list.order_by(*order_by_args))
+            for obj in obj_list:
+                obj.similarity = similarity_map[obj.molregno]
+            return obj_list
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -114,5 +290,22 @@ class SimilarityResource(MoleculeResource):
             return self._build_reverse_url(url_name, kwargs=self.resource_uri_kwargs(bundle_or_obj))
         except NoReverseMatch:
             return ''
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def generate_cache_key(self, *args, **kwargs):
+        """
+        Creates a unique-enough cache key.
+
+        This is based off the current api_name/resource_name/args/kwargs.
+        """
+        smooshed = []
+
+        for key, value in kwargs.items():
+            if key not in ('limit', 'offset'):
+                smooshed.append("%s=%s" % (key, value))
+
+        # Use a list plus a ``.join()`` because it's faster than concatenation.
+        return "%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, ':'.join(args), ':'.join(sorted(smooshed)))
 
 #-----------------------------------------------------------------------------------------------------------------------

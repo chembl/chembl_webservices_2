@@ -34,6 +34,7 @@ class AssayResource(ChemblModelResource):
         collection_name = 'assays'
         detail_uri_name = 'chembl_id'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        prefetch_related = ['doc', 'target', 'assay_type', 'relationship_type', 'confidence_score', 'cell']
 
         fields = (
             'assay_category',

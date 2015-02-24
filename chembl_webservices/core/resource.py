@@ -7,18 +7,24 @@ import itertools
 from urllib import unquote
 from tastypie import http
 from tastypie.exceptions import BadRequest
+from tastypie.exceptions import Unauthorized
 from tastypie.exceptions import ImmediateHttpResponse
 from tastypie.resources import ModelResource
 from tastypie.resources import convert_post_to_put
 from tastypie.utils import dict_strip_unicode_keys
 from tastypie.exceptions import NotFound
+from django.utils import six
 from django.http import HttpResponse
+from django.http import HttpResponseNotFound
+from django.http import Http404
 from django.conf.urls import url
 from django.conf import settings
+from django.core.signals import got_request_exception
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import MultipleObjectsReturned
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
+from django.db import DatabaseError
 
 # If ``csrf_exempt`` isn't present, stub it.
 try:
@@ -178,11 +184,23 @@ class ChemblModelResource(ModelResource):
             all_request_params.update(request.POST)
             objects = self.obj_get_list(bundle=bundle, **kwargs)
             sorted_objects = self.apply_sorting(objects, options=all_request_params)
+            sorted_objects = self.prefetch_related(sorted_objects)
+            try:
+                count = sorted_objects.count()
+            except DatabaseError as e:
+                msg = e.message
+                if 'MDL-1622' in str(msg):
+                    raise BadRequest("Input string %s is not a valid SMILES string" % kwargs.get('smiles'))
+                else:
+                    return self._handle_500(self, bundle.request, e)
+            if count < max_limit:
+                len(sorted_objects)
             objs = []
             paginator = self._meta.paginator_class(paginator_info, sorted_objects, resource_uri=self.get_resource_uri(),
                 limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
                 format=request.format, params=kwargs, method=request.method)
-            meta = paginator.get_meta()
+            meta = paginator.get_meta(False)
+            meta['total_count'] = count
             if request.method.upper() == 'GET':
                 meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
                 meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(), meta['total_count'])
@@ -194,6 +212,7 @@ class ChemblModelResource(ModelResource):
                         limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
                         format=request.format, params=kwargs, method=request.method)
                     slice = paginator.get_slice(paginator.get_limit(), paginator.get_offset())
+                    len(slice)
                     objs.extend(slice)
                     if not get_failed:
                         try:
@@ -207,7 +226,7 @@ class ChemblModelResource(ModelResource):
             paginator = self._meta.paginator_class(paginator_info, [], resource_uri=self.get_resource_uri(),
                 limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
                 format=request.format, params=kwargs, method=request.method)
-            meta = paginator.get_meta()
+            meta = paginator.get_meta(False)
             meta['total_count'] = pages[0]['count']
             if request.method.upper() == 'GET':
                 meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
@@ -385,6 +404,14 @@ class ChemblModelResource(ModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+    def prefetch_related(self, objects):
+        related_fields = getattr(self._meta, 'prefetch_related', None)
+        if not related_fields:
+            return objects
+        return objects.prefetch_related(*self._meta.prefetch_related)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
     def obj_get(self, bundle, **kwargs):
         """
         A ORM-specific implementation of ``obj_get``.
@@ -397,6 +424,7 @@ class ChemblModelResource(ModelResource):
             object_list = self.get_object_list(bundle.request).filter(**applicable_filters)
             if distinct:
                 object_list = object_list.distinct()
+            object_list = self.prefetch_related(object_list)
             stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in kwargs.items()])
 
             if len(object_list) <= 0:
@@ -469,5 +497,89 @@ class ChemblModelResource(ModelResource):
                 elif type(value) in (list, tuple) and len(value) == 1 and isinstance(value[0], basestring):
                     value = value[0].split(',')
         return value
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def get_multiple(self, request, **kwargs):
+        """
+        Returns a serialized list of resources based on the identifiers
+        from the URL.
+
+        Calls ``obj_get`` to fetch only the objects requested. This method
+        only responds to HTTP GET.
+
+        Should return a HttpResponse (200 OK).
+        """
+        self.method_check(request, allowed=['get'])
+        self.is_authenticated(request)
+        self.throttle_check(request)
+
+        # Rip apart the list then iterate.
+        kwarg_name = '%s_list' % self._meta.detail_uri_name
+        obj_identifiers = kwargs.get(kwarg_name, '').split(';')
+        objects = []
+        not_found = []
+        base_bundle = self.build_bundle(request=request)
+
+        for identifier in obj_identifiers:
+            try:
+                obj, _ = self.cached_obj_get(bundle=base_bundle, **{self._meta.detail_uri_name: identifier})
+                bundle = self.build_bundle(obj=obj, request=request)
+                bundle = self.full_dehydrate(bundle, for_list=True)
+                objects.append(bundle)
+            except (ObjectDoesNotExist, Unauthorized):
+                not_found.append(identifier)
+
+        object_list = {
+            self._meta.collection_name: objects,
+        }
+
+        if len(not_found):
+            object_list['not_found'] = not_found
+
+        self.log_throttled_access(request)
+        return self.create_response(request, object_list)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def _handle_500(self, request, exception):
+        import traceback
+        import sys
+        the_trace = '\n'.join(traceback.format_exception(*(sys.exc_info())))
+        response_class = http.HttpApplicationError
+        response_code = 500
+
+        NOT_FOUND_EXCEPTIONS = (NotFound, ObjectDoesNotExist, Http404)
+
+        if isinstance(exception, NOT_FOUND_EXCEPTIONS):
+            response_class = HttpResponseNotFound
+            response_code = 404
+
+
+        detailed_data = {
+            "error_message": six.text_type(exception),
+            "traceback": the_trace,
+        }
+        self.log.error('_handle_500 error', exc_info=True, extra={'data': detailed_data, 'request': request, 'original_exception': exception})
+        if settings.DEBUG:
+            return self.error_response(request, detailed_data, response_class=response_class)
+
+        # When DEBUG is False, send an error message to the admins (unless it's
+        # a 404, in which case we check the setting).
+        send_broken_links = getattr(settings, 'SEND_BROKEN_LINK_EMAILS', False)
+
+        if not response_code == 404 or send_broken_links:
+            log = logging.getLogger('django.request.tastypie')
+            log.error('Internal Server Error: %s' % request.path, exc_info=True,
+                      extra={'status_code': response_code, 'request': request})
+
+        # Send the signal so other apps are aware of the exception.
+        got_request_exception.send(self.__class__, request=request)
+
+        # Prep the data going out.
+        data = {
+            "error_message": getattr(settings, 'TASTYPIE_CANNED_ERROR', "Sorry, this request could not be processed. Please try again later."),
+        }
+        return self.error_response(request, data, response_class=response_class)
 
 #-----------------------------------------------------------------------------------------------------------------------

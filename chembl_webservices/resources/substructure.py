@@ -8,6 +8,8 @@ from django.core.exceptions import MultipleObjectsReturned
 from chembl_webservices.resources.molecule import MoleculeResource
 from chembl_core_model.models import CompoundMols
 from chembl_core_model.models import MoleculeDictionary
+import itertools
+from django.conf import settings
 try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:
@@ -59,8 +61,6 @@ class SubstructureResource(MoleculeResource):
                     mol_filters = {'chembl_id':chembl_id}
                 else:
                     mol_filters = {'compoundstructures__standard_inchi_key' : std_inchi_key}
-                print 'mol_filters:'
-                print mol_filters
                 objects = self.apply_filters(bundle.request, mol_filters).values_list('compoundstructures__canonical_smiles',
                     flat=True)
                 stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in mol_filters.items()])
@@ -74,6 +74,9 @@ class SubstructureResource(MoleculeResource):
                 smiles = objects[0]
             except ValueError:
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
+
+        elif len(smiles) < 6:
+            raise BadRequest("Structure %s is too short." % smiles)
 
         mols = CompoundMols.objects.with_substructure(smiles).defer('molfile').values_list('molecule_id', flat=True)
 
@@ -93,7 +96,6 @@ class SubstructureResource(MoleculeResource):
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
         if distinct:
             objects = objects.distinct()
-        len(objects) # HACK - evaluate a query set here is it is smaller when pickling, I don't understand why...
         return self.authorized_read_list(objects, bundle)
 
 #-----------------------------------------------------------------------------------------------------------------------

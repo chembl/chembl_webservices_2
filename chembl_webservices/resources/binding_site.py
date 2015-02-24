@@ -50,6 +50,7 @@ class BindingSiteResource(ChemblModelResource):
         'sitecomponents_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
+        prefetch_related = ['sitecomponents_set', 'sitecomponents_set__domain']
         queryset = BindingSites.objects.all()
         resource_name = 'binding_site'
         collection_name = 'binding_sites'

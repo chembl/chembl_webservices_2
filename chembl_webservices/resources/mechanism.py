@@ -26,6 +26,7 @@ class MechanismResource(ChemblModelResource):
         resource_name = 'mechanism'
         collection_name = 'mechanisms'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        prefetch_related = ['molecule', 'target']
 
         fields = (
             'action_type',

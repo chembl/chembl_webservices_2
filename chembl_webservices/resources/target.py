@@ -53,6 +53,7 @@ class TargetResource(ChemblModelResource):
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name,
                                                          'target_components':'target_component'})
         detail_uri_name = 'chembl_id'
+        prefetch_related = ['targetcomponents_set', 'targetcomponents_set__component']
 
         fields = (
             'organism',
@@ -67,6 +68,7 @@ class TargetResource(ChemblModelResource):
             'target_type': CHAR_FILTERS,
             'species_group_flag' : FLAG_FILTERS,
             'target_chembl_id' : ALL,
+            'target_components': ALL_WITH_RELATIONS,
         }
         ordering = filtering.keys()
 

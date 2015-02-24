@@ -108,7 +108,7 @@ class CellLineResource(ChemblModelResource):
 
         for identifier in obj_identifiers:
             try:
-                obj = self.obj_get(bundle=base_bundle, **{detail_uri_name: identifier})
+                obj, _ = self.cached_obj_get(bundle=base_bundle, **{detail_uri_name: identifier})
                 bundle = self.build_bundle(obj=obj, request=request)
                 bundle = self.full_dehydrate(bundle, for_list=True)
                 objects.append(bundle)
