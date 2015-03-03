@@ -1,4 +1,3 @@
-[![Stories in Ready](https://badge.waffle.io/chembl/chembl_webservices_2.png?label=ready&title=Ready)](https://waffle.io/chembl/chembl_webservices_2)
 chembl_webservices version 2.x
 ======
 
@@ -10,3 +9,4 @@ chembl_webservices version 2.x
 
 [![Downloads](https://pypip.in/v/chembl_webservices/badge.png)](https://pypi.python.org/pypi/chembl_webservices)
 [![Number of PyPI downloads](https://pypip.in/d/chembl_webservices/badge.png)](https://crate.io/packages/chembl_webservices/)
+[![Stories in Ready](https://badge.waffle.io/chembl/chembl_webservices_2.png?label=ready&title=Ready)](https://waffle.io/chembl/chembl_webservices_2)
