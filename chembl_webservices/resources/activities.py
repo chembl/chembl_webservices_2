@@ -18,17 +18,17 @@ class ActivityResource(ChemblModelResource):
 
     bao_format = fields.CharField('assay__bao_format', null=True, blank=True)
     data_validity_comment = fields.CharField('data_validity_comment__description', null=True, blank=True)
-    document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
-    molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
-    target_chembl_id = fields.CharField('assay__target__chembl_id', null=True, blank=True)
+    document_chembl_id = fields.CharField('doc__chembl__chembl_id', null=True, blank=True)
+    molecule_chembl_id = fields.CharField('molecule__chembl__chembl_id', null=True, blank=True)
+    target_chembl_id = fields.CharField('assay__target__chembl__chembl_id', null=True, blank=True)
     target_pref_name = fields.CharField('assay__target__pref_name', null=True, blank=True)
     target_organism = fields.CharField('assay__target__organism', null=True, blank=True)
-    assay_chembl_id = fields.CharField('assay__chembl_id', null=True, blank=True)
-    assay_type = fields.CharField('assay__assay_type_id', null=True, blank=True)
+    assay_chembl_id = fields.CharField('assay__chembl__chembl_id', null=True, blank=True)
+    assay_type = fields.CharField('assay__assay_type__assay_type', null=True, blank=True)
     assay_description = fields.CharField('assay__description', null=True, blank=True)
     document_year = fields.IntegerField('doc__year', null=True, blank=True)
     document_journal = fields.CharField('doc__journal', null=True, blank=True)
-    record_id = fields.IntegerField('record_id', null=True, blank=True)
+    record_id = fields.IntegerField('record__record_id', null=True, blank=True)
     canonical_smiles = fields.CharField('molecule__compoundstructures__canonical_smiles', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -36,7 +36,11 @@ class ActivityResource(ChemblModelResource):
         resource_name = 'activity'
         collection_name = 'activities'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['assay', 'doc', 'molecule', 'molecule__compoundstructures', 'data_validity_comment', 'assay__target']
+        prefetch_related = ['assay', 'assay__chembl', 'assay__target', 'assay__target__chembl', 'assay__assay_type',
+                            'doc', 'doc__chembl',
+                            'molecule', 'molecule__chembl', 'molecule__compoundstructures',
+                            'data_validity_comment',
+                            'record']
         fields = (
             'activity_comment',
             'activity_id',
@@ -44,6 +48,7 @@ class ActivityResource(ChemblModelResource):
             'assay_description',
             'assay_type',
             'bao_endpoint',
+            'bao_format'
             'canonical_smiles',
             'data_validity_comment',
             'document_journal',
@@ -75,7 +80,7 @@ class ActivityResource(ChemblModelResource):
             'assay_type' : CHAR_FILTERS,
             'bao_endpoint' : ALL,
             'target_chembl_id' : CHAR_FILTERS,
-            'canonical_smiles' : ALL,
+            'canonical_smiles' : FLAG_FILTERS,
             'data_validity_comment' : ALL,
             'document_chembl_id' : ALL,
             'document_journal': CHAR_FILTERS,
@@ -98,6 +103,6 @@ class ActivityResource(ChemblModelResource):
             'target_organism' : CHAR_FILTERS,
             'uo_units' : CHAR_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or 'canonical_smiles' in field) ]
 
 #-----------------------------------------------------------------------------------------------------------------------

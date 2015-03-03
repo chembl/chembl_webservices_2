@@ -225,6 +225,8 @@ class ImageResource(ChemblModelResource):
             img, mimetype = self.render_json(mol, size, ignoreCoords)
         elif frmt == 'chemcha':
             img, mimetype = self.render_chemcha(mol, size, ignoreCoords)
+            if request.is_ajax():
+                img = base64.b64encode(img)
         else:
             return self.answerBadRequest(request, "Unsupported format %s" % frmt)
         response = HttpResponse(mimetype=mimetype)
@@ -302,22 +304,25 @@ class ImageResource(ChemblModelResource):
 
         in_cache = False
         start = time.time()
-        try:
-            ret = self._meta.cache.get(cache_key)
-            in_cache = True
-        except Exception:
-            ret = None
-            get_failed = True
-            self.log.error('Cashing get exception', exc_info=True, extra=kwargs)
-
-        if ret is None:
-            in_cache = False
+        if kwargs.get('format', 'png') == 'chemcha' and '_' in kwargs:
             ret = self.image_get(request, **kwargs)
-            if not get_failed:
-                try:
-                    self._meta.cache.set(cache_key, ret)
-                except Exception:
-                    self.log.error('Cashing set exception', exc_info=True, extra=kwargs)
+        else:
+            try:
+                ret = self._meta.cache.get(cache_key)
+                in_cache = True
+            except Exception:
+                ret = None
+                get_failed = True
+                self.log.error('Cashing get exception', exc_info=True, extra=kwargs)
+
+            if ret is None:
+                in_cache = False
+                ret = self.image_get(request, **kwargs)
+                if not get_failed:
+                    try:
+                        self._meta.cache.set(cache_key, ret)
+                    except Exception:
+                        self.log.error('Cashing set exception', exc_info=True, extra=kwargs)
 
         if WS_DEBUG:
             end = time.time()
@@ -361,5 +366,23 @@ class ImageResource(ChemblModelResource):
         image = SineWarp().render(image)
         image.save(buf, "PNG")
         return buf.getvalue(), "image/png"
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def generate_cache_key(self, *args, **kwargs):
+
+        molecule__chembl_id = kwargs.get('molecule__chembl_id', '')
+        standard_inchi_key = kwargs.get('standard_inchi_key', '')
+        format = kwargs.get('format', 'png')
+        engine = kwargs.get('engine', 'rdkit')
+        dimensions = kwargs.get('dimensions', 500)
+        ignoreCoords = kwargs.get("ignoreCoords", False)
+
+
+        # Use a list plus a ``.join()`` because it's faster than concatenation.
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                                     str(molecule__chembl_id), str(standard_inchi_key), str(format),
+                                                     str(engine), str(dimensions), str(ignoreCoords))
+        return cache_key
 
 #-----------------------------------------------------------------------------------------------------------------------

@@ -15,18 +15,22 @@ except ImportError:
 
 class MechanismResource(ChemblModelResource):
 
-    record_id = fields.IntegerField('record_id', null=True, blank=True)
-    molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
-    target_chembl_id = fields.CharField('target__chembl_id', null=True, blank=True)
-    site_id = fields.IntegerField('site_id', null=True, blank=True)
-    action_type = fields.CharField('action_type_id', null=True, blank=True)
+    record_id = fields.IntegerField('record__record_id', null=True, blank=True)
+    molecule_chembl_id = fields.CharField('molecule__chembl__chembl_id', null=True, blank=True)
+    target_chembl_id = fields.CharField('target__chembl__chembl_id', null=True, blank=True)
+    site_id = fields.IntegerField('site__site_id', null=True, blank=True)
+    action_type = fields.CharField('action_type__action_type', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = DrugMechanism.objects.all()
         resource_name = 'mechanism'
         collection_name = 'mechanisms'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['molecule', 'target']
+        prefetch_related = ['action_type',
+                            'molecule', 'molecule__chembl',
+                            'record',
+                            'target', 'target__chembl',
+                            'site']
 
         fields = (
             'action_type',

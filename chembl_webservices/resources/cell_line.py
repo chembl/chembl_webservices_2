@@ -18,13 +18,14 @@ except ImportError:
 
 class CellLineResource(ChemblModelResource):
 
-    cell_chembl_id = fields.CharField('chembl_id')
+    cell_chembl_id = fields.CharField('chembl__chembl_id')
 
     class Meta(ChemblResourceMeta):
         queryset = CellDictionary.objects.all()
         resource_name = 'cell_line'
         collection_name = 'cell_lines'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        prefetch_related = ['chembl']
 
         fields = (
             'cell_description',

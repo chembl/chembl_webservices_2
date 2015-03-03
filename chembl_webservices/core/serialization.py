@@ -4,6 +4,7 @@ from tastypie.serializers import Serializer
 from tastypie.exceptions import UnsupportedFormat
 from tastypie.bundle import Bundle
 import urlparse
+import logging
 
 try:
     import defusedxml.lxml as lxml
@@ -12,6 +13,19 @@ try:
     from lxml.etree import Element, tostring, LxmlError, XMLParser
 except ImportError:
     lxml = None
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+def valid_xml_char_ordinal(c):
+    codepoint = ord(c)
+    # conditions ordered by presumed frequency
+    return (
+        0x20 <= codepoint <= 0xD7FF or
+        codepoint in (0x9, 0xA, 0xD) or
+        0xE000 <= codepoint <= 0xFFFD or
+        0x10000 <= codepoint <= 0x10FFFF
+        )
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -30,6 +44,7 @@ class ChEMBLApiSerializer(Serializer):
     def __init__(self, name=None, names=None):
         self.objName = name
         self.objNames = names
+        self.log = logging.getLogger(__name__)
         super(ChEMBLApiSerializer, self).__init__()
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -139,7 +154,13 @@ class ChEMBLApiSerializer(Serializer):
             element = Element(name or 'value')
             simple_data = self.to_simple(data, options)
             if simple_data:
-                element.text = unicode(simple_data)
+                try:
+                    element.text = unicode(simple_data)
+                except ValueError as e:
+                    self.log.error('Not valid XML character detected in ', exc_info=True,
+                        extra={'data': simple_data, 'original_exception': e})
+                    cleaned_string = ''.join(c for c in simple_data if valid_xml_char_ordinal(c))
+                    element.text = unicode(cleaned_string)
 
         return element
 

@@ -15,17 +15,17 @@ except ImportError:
 
 class AssayResource(ChemblModelResource):
 
-    assay_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
-    document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
-    target_chembl_id = fields.CharField('target__chembl_id', null=True, blank=True)
-    assay_type = fields.CharField('assay_type_id', null=True, blank=True)
+    assay_chembl_id = fields.CharField('chembl__chembl_id', null=True, blank=True)
+    document_chembl_id = fields.CharField('doc__chembl__chembl_id', null=True, blank=True)
+    target_chembl_id = fields.CharField('target__chembl__chembl_id', null=True, blank=True)
+    assay_type = fields.CharField('assay_type__assay_type', null=True, blank=True)
     assay_type_description = fields.CharField('assay_type__assay_desc', null=True, blank=True)
-    relationship_type = fields.CharField('relationship_type_id', null=True, blank=True)
+    relationship_type = fields.CharField('relationship_type__relationship_type', null=True, blank=True)
     relationship_description = fields.CharField('relationship_type__relationship_desc', null=True, blank=True)
-    confidence_score = fields.IntegerField('confidence_score_id', null=True, blank=True)
+    confidence_score = fields.IntegerField('confidence_score__confidence_score', null=True, blank=True)
     confidence_description = fields.CharField('confidence_score__description', null=True, blank=True)
-    src_id = fields.IntegerField('src_id', null=True, blank=True)
-    cell_chembl_id = fields.CharField('cell__chembl_id', null=True, blank=True)
+    src_id = fields.IntegerField('src__src_id', null=True, blank=True)
+    cell_chembl_id = fields.CharField('cell__chembl__chembl_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Assays.objects.all()
@@ -34,7 +34,15 @@ class AssayResource(ChemblModelResource):
         collection_name = 'assays'
         detail_uri_name = 'chembl_id'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['doc', 'target', 'assay_type', 'relationship_type', 'confidence_score', 'cell']
+        prefetch_related = ['assay_type',
+                            'cell', 'cell__chembl',
+                            'chembl',
+                            'confidence_score',
+                            'doc', 'doc__chembl',
+                            'relationship_type',
+                            'src',
+                            'target',
+                            ]
 
         fields = (
             'assay_category',

@@ -14,7 +14,7 @@ except ImportError:
 
 class DocsResource(ChemblModelResource):
 
-    document_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
+    document_chembl_id = fields.CharField('chembl__chembl_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Docs.objects.all()
@@ -23,9 +23,9 @@ class DocsResource(ChemblModelResource):
         collection_name = 'documents'
         detail_uri_name = 'chembl_id'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        prefetch_related = ['chembl']
 
         fields = (
-            'abstract',
             'authors',
             'doc_type',
             'document_chembl_id',
@@ -41,7 +41,6 @@ class DocsResource(ChemblModelResource):
         )
 
         filtering = {
-#            'abstract' : ALL,
             'authors' : CHAR_FILTERS,
             'doc_type' : CHAR_FILTERS,
             'document_chembl_id' : NUMBER_FILTERS,

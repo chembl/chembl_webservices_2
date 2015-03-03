@@ -145,6 +145,7 @@ class MoleculeFormsResource(ChemblModelResource):
     def get_detail(self, request, **kwargs):
         start = time.time()
         basic_bundle = self.build_bundle(request=request)
+        kwargs['detail'] = True
 
         try:
             obj, in_cache = self.cached_obj_get_list(bundle=basic_bundle, **self.remove_api_resource_names(kwargs))
@@ -249,5 +250,34 @@ class MoleculeFormsResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/set/(?P<%s_list>\w[\w/;-]*)\.(?P<format>\w+)$" % (self._meta.resource_name,  self._meta.detail_uri_name), self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def generate_cache_key(self, *args, **kwargs):
+        smooshed = []
+
+        mode = ['detail'] if 'detail' in kwargs else args
+
+        filters, _ = self.build_filters(kwargs)
+
+        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
+        if hasattr(kwargs, 'getlist'):
+            order_bits = kwargs.getlist(parameter_name, [])
+        else:
+            order_bits = kwargs.get(parameter_name, [])
+
+        if isinstance(order_bits, basestring):
+            order_bits = [order_bits]
+
+        limit = kwargs.get('limit', '') if 'list' in args else ''
+        offset = kwargs.get('offset', '') if 'list' in args else ''
+
+        for key, value in filters.items():
+            smooshed.append("%s=%s" % (key, value))
+
+        # Use a list plus a ``.join()`` because it's faster than concatenation.
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(mode),
+                                               str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
+        return cache_key
 
 #-----------------------------------------------------------------------------------------------------------------------

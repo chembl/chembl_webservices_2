@@ -15,6 +15,7 @@ from django.core.urlresolvers import NoReverseMatch
 from django.core.exceptions import MultipleObjectsReturned
 from chembl_webservices.resources.molecule import MoleculeResource
 from tastypie.exceptions import InvalidSortError
+from tastypie.exceptions import ImmediateHttpResponse
 from chembl_core_model.models import CompoundMols
 from chembl_core_model.models import MoleculeDictionary
 try:
@@ -109,8 +110,10 @@ class SimilarityResource(MoleculeResource):
             msg = e.message
             if 'MDL-1622' in str(msg):
                 raise BadRequest("Input string %s is not a valid SMILES string" % smiles)
+            elif 'MDL-0632' in str(msg):
+                raise BadRequest("Molfile containing R-group atoms is not supported, got: %s" % smiles)
             else:
-                return self._handle_500(self, bundle.request, e)
+                raise ImmediateHttpResponse(response=self._handle_500(bundle.request, e))
 
         filters = {
             'chembl__entity_type':'COMPOUND',
@@ -294,18 +297,36 @@ class SimilarityResource(MoleculeResource):
 #-----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
-        """
-        Creates a unique-enough cache key.
-
-        This is based off the current api_name/resource_name/args/kwargs.
-        """
         smooshed = []
 
-        for key, value in kwargs.items():
-            if key not in ('limit', 'offset'):
-                smooshed.append("%s=%s" % (key, value))
+        pk = kwargs.get('smiles', None)
+        if not pk:
+            pk = kwargs.get('standard_inchi_key', None)
+        if not pk:
+            pk = kwargs.get('chembl_id', None)
+
+        similarity = kwargs.get('similarity', 0)
+
+        fil = {k: v for k,v in kwargs.iteritems() if k not in
+                                                  ('smiles', 'standard_inchi_key', 'chembl_id', 'similarity', 'bundle')}
+
+        filters, _ = self.build_filters(fil)
+
+        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
+        if hasattr(kwargs, 'getlist'):
+            order_bits = kwargs.getlist(parameter_name, [])
+        else:
+            order_bits = kwargs.get(parameter_name, [])
+
+        if isinstance(order_bits, basestring):
+            order_bits = [order_bits]
+
+        for key, value in filters.items():
+            smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        return "%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, ':'.join(args), ':'.join(sorted(smooshed)))
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args), pk,
+                                               str(similarity), '|'.join(order_bits), '|'.join(sorted(smooshed)))
+        return cache_key
 
 #-----------------------------------------------------------------------------------------------------------------------

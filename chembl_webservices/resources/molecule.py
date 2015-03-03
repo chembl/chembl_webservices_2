@@ -13,6 +13,8 @@ from tastypie.exceptions import Unauthorized
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from tastypie.utils import dict_strip_unicode_keys
+
+from chembl_core_model.models import CompoundMols
 try:
     from chembl_compatibility.models import MoleculeDictionary
 except ImportError:
@@ -148,7 +150,7 @@ class MoleculePropertiesResource(ChemblModelResource):
 
 class MoleculeResource(ChemblModelResource):
 
-    molecule_chembl_id = fields.CharField('chembl_id')
+    molecule_chembl_id = fields.CharField('chembl__chembl_id')
     molecule_properties = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculePropertiesResource',
         'compoundproperties', full=True, null=True, blank=True)
     molecule_hierarchy = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculeHierarchyResource',
@@ -173,7 +175,7 @@ class MoleculeResource(ChemblModelResource):
         serializer = ChEMBLApiSerializer(resource_name,
             {collection_name : resource_name, 'biocomponents':'biocomponent', 'molecule_synonyms': 'synonym', 'atc_classifications': 'level5'})
         detail_uri_name = 'chembl_id'
-        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy', 'compoundstructures', 'moleculehierarchy__parent_molecule']
+        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'chembl', 'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy', 'compoundstructures', 'moleculehierarchy__parent_molecule']
         fields = (
             'atc_classifications',
             'availability_type',
@@ -241,7 +243,38 @@ class MoleculeResource(ChemblModelResource):
             'usan_substem' : CHAR_FILTERS,
             'usan_year' : NUMBER_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering  = [
+            'availability_type',
+            'biotherapeutic',
+            'black_box_warning',
+            'chebi_par_id',
+            'chirality',
+            'dosed_ingredient',
+            'first_approval',
+            'first_in_class',
+            'indication_class',
+            'inorganic_flag',
+            'helm_notation',
+            'max_phase',
+            'molecule_chembl_id',
+            'molecule_hierarchy',
+            'molecule_properties',
+            'molecule_structures',
+            'molecule_type',
+            'natural_product',
+            'oral',
+            'parenteral',
+            'polymer_flag',
+            'pref_name',
+            'prodrug',
+            'structure_type',
+            'therapeutic_flag',
+            'topical',
+            'usan_stem',
+            'usan_stem_definition',
+            'usan_substem',
+            'usan_year',
+        ]
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -336,3 +369,79 @@ class MoleculeResource(ChemblModelResource):
         return data
 
 #-----------------------------------------------------------------------------------------------------------------------
+
+    def build_filters(self, filters=None, for_cache_key=False):
+
+        distinct = False
+        if filters is None:
+            filters = {}
+
+        qs_filters = {}
+
+        if getattr(self._meta, 'queryset', None) is not None:
+            # Get the possible query terms from the current QuerySet.
+            query_terms = self._meta.queryset.query.query_terms
+        else:
+            query_terms = QUERY_TERMS
+
+        for filter_expr, value in filters.items():
+            filter_bits = filter_expr.split(LOOKUP_SEP)
+            field_name = filter_bits.pop(0)
+            filter_type = 'exact'
+
+            if not field_name in self.fields:
+                if filter_expr == 'pk' or filter_expr == self._meta.detail_uri_name:
+                    qs_filters[filter_expr] = value
+                continue
+
+            if len(filter_bits) and filter_bits[-1] == 'flexmatch':
+                if not for_cache_key:
+                    pks = CompoundMols.objects.flexmatch(value).values_list('pk', flat=True)
+                    qs_filters["molregno__in"] = pks
+                else:
+                    filter_type = filter_bits.pop()
+                    qs_filter = "%s%s%s" % (field_name, LOOKUP_SEP, filter_type)
+                    qs_filters[qs_filter] = value
+                continue
+
+            if len(filter_bits) and filter_bits[-1] in query_terms:
+                filter_type = filter_bits.pop()
+
+            lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
+            if any([x.endswith('_set') for x in lookup_bits]):
+                distinct = True
+                lookup_bits = map(lambda x: x[0:-4] if x.endswith('_set') else x, lookup_bits)
+            value = self.filter_value_to_python(value, field_name, filters, filter_expr, filter_type)
+
+            db_field_name = LOOKUP_SEP.join(lookup_bits)
+            qs_filter = "%s%s%s" % (db_field_name, LOOKUP_SEP, filter_type)
+            qs_filters[qs_filter] = value
+
+        return dict_strip_unicode_keys(qs_filters), distinct
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def generate_cache_key(self, *args, **kwargs):
+        smooshed = []
+
+        filters, _ = self.build_filters(kwargs)
+
+        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
+        if hasattr(kwargs, 'getlist'):
+            order_bits = kwargs.getlist(parameter_name, [])
+        else:
+            order_bits = kwargs.get(parameter_name, [])
+
+        if isinstance(order_bits, basestring):
+            order_bits = [order_bits]
+
+        limit = kwargs.get('limit', '') if 'list' in args else ''
+        offset = kwargs.get('offset', '') if 'list' in args else ''
+
+        for key, value in filters.items():
+            smooshed.append("%s=%s" % (key, value))
+
+        # Use a list plus a ``.join()`` because it's faster than concatenation.
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                               str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
+        return cache_key

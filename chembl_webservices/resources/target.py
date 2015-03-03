@@ -39,8 +39,8 @@ class TargetComponentsResource(ChemblModelResource):
 
 class TargetResource(ChemblModelResource):
 
-    target_chembl_id = fields.CharField('chembl_id')
-    target_type = fields.CharField('target_type_id')
+    target_chembl_id = fields.CharField('chembl__chembl_id')
+    target_type = fields.CharField('target_type__target_type')
     target_components = fields.ToManyField('chembl_webservices.resources.target.TargetComponentsResource',
         'targetcomponents_set', full=True, null=True, blank=True)
 
@@ -53,7 +53,7 @@ class TargetResource(ChemblModelResource):
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name,
                                                          'target_components':'target_component'})
         detail_uri_name = 'chembl_id'
-        prefetch_related = ['targetcomponents_set', 'targetcomponents_set__component']
+        prefetch_related = ['chembl', 'target_type', 'targetcomponents_set', 'targetcomponents_set__component']
 
         fields = (
             'organism',
@@ -70,6 +70,12 @@ class TargetResource(ChemblModelResource):
             'target_chembl_id' : ALL,
             'target_components': ALL_WITH_RELATIONS,
         }
-        ordering = filtering.keys()
+        ordering = [
+            'organism',
+            'pref_name',
+            'target_type',
+            'species_group_flag',
+            'target_chembl_id',
+        ]
 
 #-----------------------------------------------------------------------------------------------------------------------

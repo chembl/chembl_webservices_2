@@ -191,8 +191,10 @@ class ChemblModelResource(ModelResource):
                 msg = e.message
                 if 'MDL-1622' in str(msg):
                     raise BadRequest("Input string %s is not a valid SMILES string" % kwargs.get('smiles'))
+                elif 'MDL-0632' in str(msg):
+                    raise BadRequest("Molfile containing R-group atoms is not supported, got: %s" % kwargs.get('smiles'))
                 else:
-                    return self._handle_500(self, bundle.request, e)
+                    raise ImmediateHttpResponse(response=self._handle_500(bundle.request, e))
             if count < max_limit:
                 len(sorted_objects)
             objs = []
@@ -581,5 +583,32 @@ class ChemblModelResource(ModelResource):
             "error_message": getattr(settings, 'TASTYPIE_CANNED_ERROR', "Sorry, this request could not be processed. Please try again later."),
         }
         return self.error_response(request, data, response_class=response_class)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def generate_cache_key(self, *args, **kwargs):
+        smooshed = []
+
+        filters, _ = self.build_filters(kwargs)
+
+        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
+        if hasattr(kwargs, 'getlist'):
+            order_bits = kwargs.getlist(parameter_name, [])
+        else:
+            order_bits = kwargs.get(parameter_name, [])
+
+        if isinstance(order_bits, basestring):
+            order_bits = [order_bits]
+
+        limit = kwargs.get('limit', '') if 'list' in args else ''
+        offset = kwargs.get('offset', '') if 'list' in args else ''
+
+        for key, value in filters.items():
+            smooshed.append("%s=%s" % (key, value))
+
+        # Use a list plus a ``.join()`` because it's faster than concatenation.
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                               str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
+        return cache_key
 
 #-----------------------------------------------------------------------------------------------------------------------
