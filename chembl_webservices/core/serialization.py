@@ -31,13 +31,13 @@ def valid_xml_char_ordinal(c):
 
 class ChEMBLApiSerializer(Serializer):
 
-    formats = ['xml', 'json', 'jsonp', 'html']
+    formats = ['xml', 'json', 'jsonp', 'yaml']
 
     content_types = {
         'json': 'application/json',
         'jsonp': 'text/javascript',
         'xml': 'application/xml',
-        'html': 'application/xml',
+        'yaml': 'text/yaml',
         'urlencode': 'application/x-www-form-urlencoded',
     }
 

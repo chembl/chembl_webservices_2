@@ -18,6 +18,7 @@ from chembl_webservices.resources.status import StatusResource
 from chembl_webservices.resources.substructure import SubstructureResource
 from chembl_webservices.resources.target import TargetResource
 from chembl_webservices.resources.target_components import TargetComponentsResource
+from chembl_webservices.resources.chembl_id import ChemblIdLookupResource
 
 __all__ = [
     'ActivityResource',
@@ -38,4 +39,5 @@ __all__ = [
     'SubstructureResource',
     'TargetResource',
     'TargetComponentsResource',
+    'ChemblIdLookupResource'
 ]

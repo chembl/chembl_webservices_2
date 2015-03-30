@@ -27,6 +27,8 @@ from chembl_webservices.resources.status import StatusResource
 from chembl_webservices.resources.image import ImageResource
 from chembl_webservices.resources.substructure import SubstructureResource
 from chembl_webservices.resources.similarity import SimilarityResource
+from chembl_webservices.resources.chembl_id import ChemblIdLookupResource
+
 from django.conf import settings
 
 monkeypatch_tastypie_field()
@@ -57,3 +59,4 @@ api.register(TargetComponentsResource())
 api.register(ImageResource())
 api.register(SubstructureResource())
 api.register(SimilarityResource())
+api.register(ChemblIdLookupResource())

@@ -616,3 +616,41 @@ class TargetComponentsResourceTest(ResourceTestCase):
         self.assertValidXMLResponse(resp)
 
 #-----------------------------------------------------------------------------------------------------------------------
+
+class ChemblIdLookupResourceTest(ResourceTestCase):
+
+    def setUp(self):
+        super(ChemblIdLookupResourceTest, self).setUp()
+        self.resource_class = ChemblIdLookupResource
+        first_two = self.resource_class._meta.queryset._clone()[0:2]
+        first = first_two[0]
+        second = first_two[1]
+        self.resource_url = BASE_URL + self.resource_class._meta.resource_name
+        self.detail_url = self.resource_url + '/%s' % first.pk
+        self.multiple_url = self.resource_url + '/set/%s;%s' % (first.pk, second.pk)
+
+    def test_get_list_json(self):
+        resp = self.api_client.get(self.resource_url, format='json')
+        self.assertValidJSONResponse(resp)
+
+    def test_get_list_xml(self):
+        resp = self.api_client.get(self.resource_url, format='xml')
+        self.assertValidXMLResponse(resp)
+
+    def test_get_detail_json(self):
+        resp = self.api_client.get(self.detail_url, format='json')
+        self.assertValidJSONResponse(resp)
+
+    def test_get_detail_xml(self):
+        resp = self.api_client.get(self.detail_url, format='xml')
+        self.assertValidXMLResponse(resp)
+
+    def test_get_multiple_json(self):
+        resp = self.api_client.get(self.multiple_url, format='json')
+        self.assertValidJSONResponse(resp)
+
+    def test_get_multiple_xml(self):
+        resp = self.api_client.get(self.multiple_url, format='xml')
+        self.assertValidXMLResponse(resp)
+
+#-----------------------------------------------------------------------------------------------------------------------

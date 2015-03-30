@@ -159,10 +159,9 @@ class MoleculeResource(ChemblModelResource):
         'compoundstructures', full=True, null=True, blank=True)
     molecule_synonyms = fields.ToManyField('chembl_webservices.resources.molecule.MoleculeSynonymsResource',
         'moleculesynonyms_set', full=True, null=True, blank=True)
-    biocomponents = fields.ToManyField('chembl_webservices.resources.bio_component.BiotherapeuticComponentsResource',
-        'biotherapeutics__bio_component_sequences', full=True, null=True, blank=True)
     helm_notation = fields.CharField('biotherapeutics__helm_notation', null=True, blank=True)
-    biotherapeutic = fields.BooleanField('biotherapeutics', null=True, blank=True)
+    biotherapeutic = fields.ForeignKey('chembl_webservices.resources.bio_component.BiotherapeuticComponentsResource',
+        'biotherapeutics', full=True, null=True, blank=True)
     atc_classifications = fields.ToManyField('chembl_webservices.resources.atc.AtcResource',
         'atcclassification_set', full=False, null=True, blank=True)
 
@@ -172,6 +171,21 @@ class MoleculeResource(ChemblModelResource):
         excludes = ['molregno']
         resource_name = 'molecule'
         collection_name = 'molecules'
+        description = {'api_dispatch_list' : '''
+Retrieve list of molecules. Apart from the standard set of relation types, there is one specific operator:
+
+*  __flexmatch__ \- matches _SMILES_ with the same structure, as opposed to exact match, for example:
+    [`COc1ccc2[C@@H]3[C@H](COc2c1)C(C)(C)OC4=C3C(=O)C(=O)C5=C4OC`
+    `(C)(C)[C@H]6COc7cc(OC)ccc7[C@@H]56`](https://www.ebi.ac.uk/chembl/api/data/molecule?molecule_structures__canonical_smiles__flexmatch=COc1ccc2[C@@H]3[C@H]%28COc2c1%29C%28C%29%28C%29OC4=C3C%28=O%29C%28=O%29C5=C4OC%28C%29%28C%29[C@H]6COc7cc%28OC%29ccc7[C@@H]56 "Example")
+will match two molecules with:
+
+*  `COc1ccc2[C@@H]3[C@H](COc2c1)C(C)(C)OC4=C3C(=O)C(=O)C5=C4OC`
+`(C)(C)[C@H]6COc7cc(OC)ccc7[C@@H]56` and
+*  `COc1ccc2[C@@H]3[C@H](COc2c1)C(C)(C)OC4=C3C(=O)C(=O)C5=C4OC`
+`(C)(C)[C@@H]6COc7cc(OC)ccc7[C@H]56`
+
+_SMILES_.
+        '''}
         serializer = ChEMBLApiSerializer(resource_name,
             {collection_name : resource_name, 'biocomponents':'biocomponent', 'molecule_synonyms': 'synonym', 'atc_classifications': 'level5'})
         detail_uri_name = 'chembl_id'
@@ -212,7 +226,7 @@ class MoleculeResource(ChemblModelResource):
 
         filtering = {
             'availability_type' : CHAR_FILTERS,
-            'biotherapeutic' : FLAG_FILTERS,
+            'biotherapeutic' : ALL_WITH_RELATIONS,
             'black_box_warning' : FLAG_FILTERS,
             'chebi_par_id' : NUMBER_FILTERS,
             'chirality' : NUMBER_FILTERS,
@@ -282,20 +296,20 @@ class MoleculeResource(ChemblModelResource):
 
         return [
             url(r"^(?P<resource_name>%s)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_list'), name="api_dispatch_list"),
-            url(r"^(?P<resource_name>%s)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_list"),
+            url(r"^(?P<resource_name>%s)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_list"),
             url(r"^(?P<resource_name>%s)/schema%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_schema'), name="api_get_schema"),
-            url(r"^(?P<resource_name>%s)/schema\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/schema\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
             url(r"^(?P<resource_name>%s)/set/(?P<chembl_id_list>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*(;[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_multiple'), name="api_get_multiple"),
-            url(r"^(?P<resource_name>%s)/set/(?P<chembl_id_list>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*(;[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_multiple'), name="api_get_multiple"),
+            url(r"^(?P<resource_name>%s)/set/(?P<chembl_id_list>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*(;[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)*)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/set/(?P<molecule_structures__standard_inchi_key_list>[A-Z]{14}-[A-Z]{10}-[A-Z](;[A-Z]{14}-[A-Z]{10}-[A-Z])*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_multiple'), name="api_get_multiple"),
-            url(r"^(?P<resource_name>%s)/set/(?P<molecule_structures__standard_inchi_key_list>[A-Z]{14}-[A-Z]{10}-[A-Z](;[A-Z]{14}-[A-Z]{10}-[A-Z])*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_multiple'), name="api_get_multiple"),
+            url(r"^(?P<resource_name>%s)/set/(?P<molecule_structures__standard_inchi_key_list>[A-Z]{14}-[A-Z]{10}-[A-Z](;[A-Z]{14}-[A-Z]{10}-[A-Z])*)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/set/(?P<molecule_structures__canonical_smiles_list>[^jx]+(;[^jx]+)*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_multiple'), name="api_get_multiple"),
-            url(r"^(?P<resource_name>%s)/set/(?P<molecule_structures__canonical_smiles_list>[^jx]+(;[^jx]+)*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_multiple'), name="api_get_multiple"),
-            url(r"^(?P<resource_name>%s)/(?P<chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/set/(?P<molecule_structures__canonical_smiles_list>[^jx]+(;[^jx]+)*)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_multiple'), name="api_get_multiple"),
+            url(r"^(?P<resource_name>%s)/(?P<chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
-            url(r"^(?P<resource_name>%s)/(?P<molecule_structures__standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/(?P<molecule_structures__standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<molecule_structures__standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
-            url(r"^(?P<resource_name>%s)/(?P<molecule_structures__canonical_smiles>[^jx]+)\.(?P<format>json|xml)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/(?P<molecule_structures__canonical_smiles>[^jx]+)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<molecule_structures__canonical_smiles>[^jx]+)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
@@ -424,7 +438,7 @@ class MoleculeResource(ChemblModelResource):
     def generate_cache_key(self, *args, **kwargs):
         smooshed = []
 
-        filters, _ = self.build_filters(kwargs)
+        filters, _ = self.build_filters(kwargs, True)
 
         parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
         if hasattr(kwargs, 'getlist'):
@@ -445,3 +459,5 @@ class MoleculeResource(ChemblModelResource):
         cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
                                                str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
         return cache_key
+
+#-----------------------------------------------------------------------------------------------------------------------

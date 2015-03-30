@@ -190,7 +190,7 @@ class SimilarityResource(MoleculeResource):
 
         paginator = self._meta.paginator_class(paginator_info, objects, resource_uri=self.get_resource_uri(),
             limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                method=request.method)
+                method=request.method, params=self.remove_api_resource_names(kwargs))
         to_be_serialized = paginator.page()
 
         # Dehydrate the bundles in preparation for serialization.

@@ -18,6 +18,7 @@ from chembl_webservices.core.resource import WS_DEBUG
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.dis import SineWarp
+from chembl_webservices.resources.molecule import MoleculeResource
 try:
     from chembl_compatibility.models import CompoundStructures
 except ImportError:
@@ -26,7 +27,10 @@ try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:
     from chembl_core_model.models import MoleculeHierarchy
-
+try:
+    from chembl_compatibility.models import MoleculeDictionary
+except ImportError:
+    from chembl_core_model.models import MoleculeDictionary
 
 # If ``csrf_exempt`` isn't present, stub it.
 try:
@@ -79,6 +83,8 @@ options.dblBondOffset = .13
 fakeSerializer = ChEMBLApiSerializer('image')
 fakeSerializer.formats = ['png', 'svg', 'json']
 
+available_fields = [f.name for f in MoleculeDictionary._meta.fields]
+
 #-----------------------------------------------------------------------------------------------------------------------
 
 class ImageResource(ChemblModelResource):
@@ -89,7 +95,23 @@ class ImageResource(ChemblModelResource):
         resource_name = 'image'
         serializer = fakeSerializer
         default_format = 'image/png'
-        queryset = CompoundStructures.objects.all()
+        description = {'api_dispatch_detail' : '''
+Get image of the compound, specified by
+
+*  _ChEMBL ID_ or
+*  _Standard InChI Key_
+
+You can specify optional parameters:
+
+*  __engine__ - chemistry toolkit used for rendering, can be _rdkit_ or _indigo_, default: _rdkit_.
+*  __dimensions__ - size of the image (the length of the square image side). Can't be more than _500_, default: _500_.
+*  __ignoreCoords__ - Ignore 2D coordinates encoded in the molfile and let the chemistry toolkit to recompute them.
+
+
+'''}
+        queryset = CompoundStructures.objects.all() if 'downgraded' not in available_fields else \
+                        CompoundStructures.objects.exclude(molecule__downgraded=True)
+
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -105,6 +127,8 @@ class ImageResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<molecule__chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])\.(?P<format>png|svg)$" % MoleculeResource._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/(?P<molecule__chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)\.(?P<format>png|svg)$" % MoleculeResource._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -183,13 +207,11 @@ class ImageResource(ChemblModelResource):
         filters.update({
             'molecule__chembl__entity_type':'COMPOUND',
             'molecule__compoundstructures__isnull' : False,
-            'pk__in' : MoleculeHierarchy.objects.all().values_list('parent_molecule_id'),
             'molecule__compoundproperties__isnull' : False,
-#            'molecule__downgraded' : False,
         })
 
         try:
-            molfile_list = CompoundStructures.objects.filter(**filters).values_list('molfile', flat=True)
+            molfile_list = self.get_object_list(None).filter(**filters).values_list('molfile', flat=True)
 
             if len(molfile_list) <= 0:
                 raise self._meta.object_class.DoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
