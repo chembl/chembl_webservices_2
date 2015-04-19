@@ -1,11 +1,11 @@
 chembl_webservices version 2.x
 ======
 
-![live documentation](https://www.ebi.ac.uk/chembl/api/data/docs)
+[live documentation](https://www.ebi.ac.uk/chembl/api/data/docs)
 
-![API specification](https://www.ebi.ac.uk/chembl/ws)
+[API specification](https://www.ebi.ac.uk/chembl/ws)
 
-![Introductory blog post](http://chembl.blogspot.co.uk/2015/02/using-new-chembl-web-services.html)
+[Introductory blog post](http://chembl.blogspot.co.uk/2015/02/using-new-chembl-web-services.html)
 
 [![Latest Version](https://pypip.in/version/chembl_webservices/badge.svg)](https://pypi.python.org/pypi/chembl_webservices/)
 [![Downloads](https://pypip.in/download/chembl_webservices/badge.svg)](https://pypi.python.org/pypi/chembl_webservices/)
