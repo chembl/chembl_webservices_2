@@ -8,8 +8,26 @@ from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.utils import CHAR_FILTERS, FLAG_FILTERS, NUMBER_FILTERS
 from chembl_core_model.models import TargetDictionary
 from chembl_core_model.models import TargetComponents
+from chembl_core_model.models import ComponentSynonyms
 
 available_fields = [f.name for f in TargetDictionary._meta.fields]
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+class TargetComponentSynonyms(ChemblModelResource):
+
+    class Meta(ChemblResourceMeta):
+        fields = [
+            'component_synonym',
+            'syn_type',
+        ]
+        filtering = {
+            'component_synonym': CHAR_FILTERS,
+            'syn_type': CHAR_FILTERS,
+        }
+        queryset = ComponentSynonyms.objects.all()
+        resource_name = 'target_component_synonym'
+        collection_name = 'target_component_synonyms'
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -18,6 +36,8 @@ class TargetComponentsResource(ChemblModelResource):
     accession = fields.CharField('component__accession', null=True, blank=True)
     component_id = fields.IntegerField('component_id', null=True, blank=True)
     component_type = fields.CharField('component__component_type', null=True, blank=True)
+    target_component_synonyms = fields.ToManyField('chembl_webservices.resources.target.TargetComponentSynonyms',
+        'component__componentsynonyms_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         fields = [
@@ -51,9 +71,11 @@ class TargetResource(ChemblModelResource):
         resource_name = 'target'
         collection_name = 'targets'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name,
-                                                         'target_components':'target_component'})
+                                                         'target_components':'target_component',
+                                                         'target_component_synonyms': 'target_component_synonym'})
         detail_uri_name = 'chembl_id'
-        prefetch_related = ['chembl', 'target_type', 'targetcomponents_set', 'targetcomponents_set__component']
+        prefetch_related = ['chembl', 'target_type', 'targetcomponents_set', 'targetcomponents_set__component',
+                            'targetcomponents_set__component__componentsynonyms_set']
 
         fields = (
             'organism',

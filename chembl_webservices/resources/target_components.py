@@ -38,14 +38,17 @@ class TargetComponentsResource(ChemblModelResource):
     protein_classifications = fields.ToManyField(
         'chembl_webservices.resources.target_components.ProteinClassificationResource',
         'proteinclassification_set', full=True, null=True, blank=True)
+    target_component_synonyms = fields.ToManyField('chembl_webservices.resources.target.TargetComponentSynonyms',
+        'componentsynonyms_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = ComponentSequences.objects.all()
         excludes = ['db_source', 'db_version', 'sequence_md5sum']
         resource_name = 'target_component'
         collection_name = 'target_components'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['proteinclassification_set']
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name,
+                                                         'target_component_synonyms': 'target_component_synonym'})
+        prefetch_related = ['proteinclassification_set', 'componentsynonyms_set']
 
         fields = (
             'accession',

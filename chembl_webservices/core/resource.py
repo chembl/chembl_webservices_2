@@ -12,6 +12,7 @@ from tastypie.exceptions import ImmediateHttpResponse
 from tastypie.resources import ModelResource
 from tastypie.resources import convert_post_to_put
 from tastypie.utils import dict_strip_unicode_keys
+from tastypie.utils.mime import build_content_type
 from tastypie.exceptions import NotFound
 from django.utils import six
 from django.http import HttpResponse
@@ -22,6 +23,7 @@ from django.conf import settings
 from django.core.signals import got_request_exception
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import MultipleObjectsReturned
+from django.core.exceptions import FieldError
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from django.db import DatabaseError
@@ -85,6 +87,28 @@ class ChemblModelResource(ModelResource):
             else:
                 ret.append(x)
         return ret
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def answerBadRequest(self, request, error):
+        response_class = http.HttpBadRequest
+        data = {'exception': error}
+        if request:
+            desired_format = self.determine_format(request)
+            serialized = self.serialize(request, data, desired_format)
+        else:
+            desired_format = 'application/xml'
+            serialized = self._meta.serializer.serialize(data, desired_format, None)
+        raise ImmediateHttpResponse(response=response_class(content=serialized,
+                                                    content_type=build_content_type(desired_format)))
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def apply_sorting(self, obj_list, options=None):
+        try:
+            return super(ChemblModelResource, self).apply_sorting(obj_list, options)
+        except FieldError as e:
+            return self.answerBadRequest(None, e)
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -183,6 +207,8 @@ class ChemblModelResource(ModelResource):
             all_request_params = request.GET.copy()
             all_request_params.update(request.POST)
             objects = self.obj_get_list(bundle=bundle, **kwargs)
+            #if isinstance(objects, HttpResponse):
+            #    raise ImmediateHttpResponse(response=objects)
             sorted_objects = self.apply_sorting(objects, options=all_request_params)
             sorted_objects = self.prefetch_related(sorted_objects)
             try:

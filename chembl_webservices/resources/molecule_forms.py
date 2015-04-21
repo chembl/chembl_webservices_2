@@ -9,6 +9,7 @@ from tastypie import fields
 from tastypie.utils import trailing_slash
 from tastypie.exceptions import BadRequest
 from tastypie.exceptions import Unauthorized
+from tastypie.exceptions import ImmediateHttpResponse
 from django.conf.urls import url
 from django.db.models import Q
 from chembl_webservices.core.resource import ChemblModelResource
@@ -110,12 +111,13 @@ class MoleculeFormsResource(ChemblModelResource):
             try:
                 mol = MoleculeDictionary.objects.get(chembl_id=chembl_id)
             except ObjectDoesNotExist:
-                return http.HttpNotFound()
+                raise ImmediateHttpResponse(response=http.HttpNotFound())
             except MultipleObjectsReturned:
-                return http.HttpMultipleChoices("More than one resource is found at this URI.")
+                raise ImmediateHttpResponse(
+                    response=http.HttpMultipleChoices("More than one resource is found at this URI."))
 
             if hasattr(mol, 'downgraded') and mol.downgraded:
-                return http.HttpNotFound()
+                raise ImmediateHttpResponse(response=http.HttpNotFound())
 
             hierarchy = mol.moleculehierarchy
 
