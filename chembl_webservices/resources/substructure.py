@@ -4,7 +4,7 @@ from tastypie.exceptions import BadRequest
 from tastypie.utils import trailing_slash
 from django.conf.urls import url
 from django.core.urlresolvers import NoReverseMatch
-from django.core.exceptions import MultipleObjectsReturned
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from chembl_webservices.resources.molecule import MoleculeResource
 from chembl_core_model.models import CompoundMols
 from chembl_core_model.models import MoleculeDictionary
@@ -66,12 +66,17 @@ class SubstructureResource(MoleculeResource):
                 stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in mol_filters.items()])
                 length = len(objects)
                 if length <= 0:
-                    raise self._meta.object_class.DoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
+                    raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
                                                                (self._meta.object_class.__name__, stringified_kwargs))
                 elif length > 1:
                     raise MultipleObjectsReturned("More than '%s' matched '%s'." % (self._meta.object_class.__name__,
                                                                                     stringified_kwargs))
                 smiles = objects[0]
+            except TypeError as e:
+                if e.message.startswith('Related Field has invalid lookup:'):
+                    raise BadRequest(e.message)
+                else:
+                    raise e
             except ValueError:
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
@@ -92,6 +97,11 @@ class SubstructureResource(MoleculeResource):
         filters.update(standard_filters)
         try:
             objects = self.get_object_list(bundle.request).filter(**filters).filter(pk__in=mols)
+        except TypeError as e:
+            if e.message.startswith('Related Field has invalid lookup:'):
+                raise BadRequest(e.message)
+            else:
+                raise e
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
         if distinct:

@@ -114,7 +114,7 @@ class ChEMBLApiSerializer(Serializer):
             new_name = None
             if name:
                 element = Element(name)
-                new_name = self.objNames.get(name)
+                new_name = self.objNames.get(name) if self.objNames else name
             else:
                 element = Element('objects')
             for item in data:

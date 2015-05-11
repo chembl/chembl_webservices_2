@@ -12,7 +12,7 @@ from django.db import DatabaseError
 from django.conf import settings
 from django.conf.urls import url
 from django.core.urlresolvers import NoReverseMatch
-from django.core.exceptions import MultipleObjectsReturned
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from chembl_webservices.resources.molecule import MoleculeResource
 from tastypie.exceptions import InvalidSortError
 from tastypie.exceptions import ImmediateHttpResponse
@@ -93,27 +93,26 @@ class SimilarityResource(MoleculeResource):
                 stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in mol_filters.items()])
                 length = len(objects)
                 if length <= 0:
-                    raise self._meta.object_class.DoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
+                    raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
                                                                (self._meta.object_class.__name__, stringified_kwargs))
                 elif length > 1:
                     raise MultipleObjectsReturned("More than '%s' matched '%s'." % (self._meta.object_class.__name__,
                                                                                     stringified_kwargs))
                 smiles = objects[0]
+            except TypeError as e:
+                if e.message.startswith('Related Field has invalid lookup:'):
+                    raise BadRequest(e.message)
+                else:
+                    raise e
             except ValueError:
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
         similar = CompoundMols.objects.similar_to(smiles, similarity).values_list('molecule_id', 'similarity')
 
         try:
-            similarity_map = OrderedDict(sorted(similar, key=lambda x:x[1]))
+            similarity_map = OrderedDict(sorted(similar, key=lambda x: x[1]))
         except DatabaseError as e:
-            msg = e.message
-            if 'MDL-1622' in str(msg):
-                raise BadRequest("Input string %s is not a valid SMILES string" % smiles)
-            elif 'MDL-0632' in str(msg):
-                raise BadRequest("Molfile containing R-group atoms is not supported, got: %s" % smiles)
-            else:
-                raise ImmediateHttpResponse(response=self._handle_500(bundle.request, e))
+            self._handle_database_error(e, bundle.request, {'smiles': smiles})
 
         filters = {
             'chembl__entity_type':'COMPOUND',

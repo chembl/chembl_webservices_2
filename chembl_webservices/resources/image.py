@@ -214,7 +214,7 @@ You can specify optional parameters:
             molfile_list = self.get_object_list(None).filter(**filters).values_list('molfile', flat=True)
 
             if len(molfile_list) <= 0:
-                raise self._meta.object_class.DoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
+                raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
                                                            (self._meta.object_class.__name__, stringified_kwargs))
             elif len(molfile_list) > 1:
                 raise MultipleObjectsReturned("More than '%s' matched '%s'." %

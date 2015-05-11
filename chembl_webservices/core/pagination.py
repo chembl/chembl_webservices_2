@@ -6,6 +6,19 @@ from tastypie.paginator import six
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+def encoded_dict(in_dict):
+    out_dict = {}
+    for k, v in in_dict.iteritems():
+        if isinstance(v, unicode):
+            v = v.encode('utf8')
+        elif isinstance(v, str):
+            # Must be encoded in UTF-8
+            v.decode('utf8')
+        out_dict[k] = v
+    return out_dict
+
+#-----------------------------------------------------------------------------------------------------------------------
+
 class ChEMBLPaginator(Paginator):
 
     def __init__(self, request_data, objects, resource_uri=None, limit=None, offset=0, max_limit=1000,
@@ -60,22 +73,8 @@ class ChEMBLPaginator(Paginator):
                 request_params.update(self.params)
             encoded_params = request_params.urlencode()
         except AttributeError:
-            request_params = {}
-
-            for k, v in self.request_data.items():
-                if isinstance(v, six.text_type):
-                    request_params[k] = v.encode('utf-8')
-                else:
-                    request_params[k] = v
-
-            if 'limit' in request_params:
-                del request_params['limit']
-            if 'offset' in request_params:
-                del request_params['offset']
-            request_params.update({'limit': limit, 'offset': offset})
-            if self.params:
-                request_params.update(self.params)
-            encoded_params = urlencode(request_params)
+            encoded_params = encoded_dict(request_params)
+            encoded_params = urlencode(encoded_params)
 
         if self.format:
             return '%s.%s?%s' % (

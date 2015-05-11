@@ -75,9 +75,14 @@ class AtcResource(ChemblModelResource):
             if distinct:
                 objects = objects.distinct()
             if objects.count() <= 0:
-                raise self._meta.object_class.DoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
+                raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
                                                            (self._meta.object_class.__name__, stringified_kwargs))
             return self.authorized_read_list(objects, bundle)
+        except TypeError as e:
+            if e.message.startswith('Related Field has invalid lookup:'):
+                raise BadRequest(e.message)
+            else:
+                raise e
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 

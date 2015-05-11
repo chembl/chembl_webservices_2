@@ -137,6 +137,11 @@ class MoleculeFormsResource(ChemblModelResource):
                 objects = self.apply_filters(bundle.request, filters)
                 #if distinct:
                 #    objects = objects.distinct()
+            except TypeError as e:
+                if e.message.startswith('Related Field has invalid lookup:'):
+                    raise BadRequest(e.message)
+                else:
+                    raise e
             except ValueError:
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 

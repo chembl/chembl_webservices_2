@@ -159,6 +159,23 @@ class ChemblModelResource(ModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+    def _handle_database_error(self, error, request, kwargs):
+        msg = str(error.message)
+        if 'MDL-1622' in msg:
+            raise BadRequest("Input string %s is not a valid SMILES string" % kwargs.get('smiles'))
+        elif 'MDL-0280' in msg:
+            raise BadRequest("The query %s did not set any substructure keys, and thus cannot be used in a similarity search. Use a different query." % kwargs.get('smiles'))
+        elif 'MDL-0632' in msg:
+            raise BadRequest("Molfile containing R-group atoms is not supported, got: %s" % kwargs.get('smiles'))
+        elif 'MDL-1250' in msg:
+            raise BadRequest("SIMILAR search query can not be a NOSTRUCT or unconnected H or LP atom, got: %s" %
+                             kwargs.get('smiles'))
+        else:
+            raise ImmediateHttpResponse(response=self._handle_500(request, error))
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+
     def cached_obj_get_list(self, bundle, **kwargs):
         """
         A version of ``obj_get_list`` that uses the cache as a means to get
@@ -214,13 +231,7 @@ class ChemblModelResource(ModelResource):
             try:
                 count = sorted_objects.count()
             except DatabaseError as e:
-                msg = e.message
-                if 'MDL-1622' in str(msg):
-                    raise BadRequest("Input string %s is not a valid SMILES string" % kwargs.get('smiles'))
-                elif 'MDL-0632' in str(msg):
-                    raise BadRequest("Molfile containing R-group atoms is not supported, got: %s" % kwargs.get('smiles'))
-                else:
-                    raise ImmediateHttpResponse(response=self._handle_500(bundle.request, e))
+                self._handle_database_error(e, request, kwargs)
             if count < max_limit:
                 len(sorted_objects)
             objs = []
@@ -456,7 +467,7 @@ class ChemblModelResource(ModelResource):
             stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in kwargs.items()])
 
             if len(object_list) <= 0:
-                raise self._meta.object_class.DoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
+                raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
                                                            (self._meta.object_class.__name__, stringified_kwargs))
             elif len(object_list) > 1:
                 raise MultipleObjectsReturned("More than '%s' matched '%s'." %
@@ -492,6 +503,11 @@ class ChemblModelResource(ModelResource):
             if distinct:
                 objects = objects.distinct()
             return self.authorized_read_list(objects, bundle)
+        except TypeError as e:
+            if e.message.startswith('Related Field has invalid lookup:'):
+                raise BadRequest(e.message)
+            else:
+                raise e
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
@@ -605,9 +621,17 @@ class ChemblModelResource(ModelResource):
         got_request_exception.send(self.__class__, request=request)
 
         # Prep the data going out.
-        data = {
-            "error_message": getattr(settings, 'TASTYPIE_CANNED_ERROR', "Sorry, this request could not be processed. Please try again later."),
-        }
+        if 400 <= response_code < 500:
+            data = {
+                "error_message": six.text_type(exception),
+            }
+
+        else:
+            data = {
+                "error_message": getattr(settings, 'TASTYPIE_CANNED_ERROR',
+                    "Sorry, this request could not be processed. Please try again later."),
+            }
+
         return self.error_response(request, data, response_class=response_class)
 
 #-----------------------------------------------------------------------------------------------------------------------
