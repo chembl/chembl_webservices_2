@@ -16,8 +16,17 @@ from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from chembl_webservices.resources.molecule import MoleculeResource
 from tastypie.exceptions import InvalidSortError
 from tastypie.exceptions import ImmediateHttpResponse
-from chembl_core_model.models import CompoundMols
-from chembl_core_model.models import MoleculeDictionary
+
+try:
+    from chembl_compatibility.models import CompoundMols
+except ImportError:
+    from chembl_core_model.models import CompoundMols
+
+try:
+    from chembl_compatibility.models import MoleculeDictionary
+except ImportError:
+    from chembl_core_model.models import MoleculeDictionary
+
 try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:
