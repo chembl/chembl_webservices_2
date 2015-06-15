@@ -6,10 +6,22 @@ from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.utils import CHAR_FILTERS, FLAG_FILTERS, NUMBER_FILTERS
-from chembl_core_model.models import TargetDictionary
-from chembl_core_model.models import TargetComponents
-from chembl_core_model.models import ComponentSynonyms
 
+try:
+    from chembl_compatibility.models import TargetDictionary
+except ImportError:
+    from chembl_core_model.models import TargetDictionary
+    
+try:
+    from chembl_compatibility.models import TargetComponents
+except ImportError:
+    from chembl_core_model.models import TargetComponents
+
+try:
+    from chembl_compatibility.models import ComponentSynonyms
+except ImportError:
+    from chembl_core_model.models import ComponentSynonyms
+    
 available_fields = [f.name for f in TargetDictionary._meta.fields]
 
 #-----------------------------------------------------------------------------------------------------------------------
