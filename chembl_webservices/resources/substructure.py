@@ -6,10 +6,19 @@ from django.conf.urls import url
 from django.core.urlresolvers import NoReverseMatch
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from chembl_webservices.resources.molecule import MoleculeResource
-from chembl_core_model.models import CompoundMols
-from chembl_core_model.models import MoleculeDictionary
 import itertools
 from django.conf import settings
+
+try:
+    from chembl_compatibility.models import CompoundMols
+except ImportError:
+    from chembl_core_model.models import CompoundMols
+
+try:
+    from chembl_compatibility.models import MoleculeDictionary
+except ImportError:
+    from chembl_core_model.models import MoleculeDictionary
+
 try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:
