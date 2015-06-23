@@ -321,7 +321,7 @@ You can specify optional parameters:
 #-----------------------------------------------------------------------------------------------------------------------
 
     def get_detail(self, request, **kwargs):
-        cache_key = self.generate_cache_key('image', **kwargs)
+        cache_key = self.generate_cache_key('image', **dict({'is_ajax': request.is_ajax()}, **kwargs))
         get_failed = False
 
         in_cache = False
@@ -399,12 +399,13 @@ You can specify optional parameters:
         engine = kwargs.get('engine', 'rdkit')
         dimensions = kwargs.get('dimensions', 500)
         ignoreCoords = kwargs.get("ignoreCoords", False)
+        is_ajax  = kwargs.get("is_ajax", 2)
 
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
                                                      str(molecule__chembl_id), str(standard_inchi_key), str(format),
-                                                     str(engine), str(dimensions), str(ignoreCoords))
+                                                     str(engine), str(dimensions), str(ignoreCoords), str(is_ajax))
         return cache_key
 
 #-----------------------------------------------------------------------------------------------------------------------

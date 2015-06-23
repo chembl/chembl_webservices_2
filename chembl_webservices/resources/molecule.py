@@ -368,6 +368,15 @@ _SMILES_.
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+    def remove_api_resource_names(self, kwargs):
+        aliases = {'smiles': 'molecule_structures__canonical_smiles'}
+        for alias, name in aliases.items():
+            if alias in kwargs:
+                kwargs[name] = kwargs.pop(alias)
+        return super(MoleculeResource, self).remove_api_resource_names(kwargs)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
     def alter_list_data_to_serialize(self, request, data):
         bundles = data['molecules']
         for idx, bundle in enumerate(bundles):

@@ -62,8 +62,8 @@ class SimilarityResource(MoleculeResource):
             url(r"^(?P<resource_name>%s)/(?P<chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)/(?P<similarity>\d[\d]*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])/(?P<similarity>\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])/(?P<similarity>\d[\d]*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
-            url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx/]+)/(?P<similarity>\d[\d]*)\.(?P<format>json|xml)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
-            url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx/]+)/(?P<similarity>\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx]+)/(?P<similarity>\d[\d]*)\.(?P<format>json|xml)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx]+)/(?P<similarity>\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
         ]
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -301,6 +301,11 @@ class SimilarityResource(MoleculeResource):
             return self._build_reverse_url(url_name, kwargs=self.resource_uri_kwargs(bundle_or_obj))
         except NoReverseMatch:
             return ''
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def remove_api_resource_names(self, kwargs):
+        return super(MoleculeResource, self).remove_api_resource_names(kwargs)
 
 #-----------------------------------------------------------------------------------------------------------------------
 

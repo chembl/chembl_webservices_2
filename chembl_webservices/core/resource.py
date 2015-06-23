@@ -1,5 +1,6 @@
 __author__ = 'mnowotka'
 
+import re
 import time
 import logging
 import mimeparse
@@ -122,10 +123,11 @@ class ChemblModelResource(ModelResource):
                 kwargs.update(dict(self.flatten_django_lists(request.GET.lists())))
 
             elif request.method == 'POST':
+                post_arg = dict()
                 if request.META.get('CONTENT_TYPE', 'application/json').startswith(
                     ('multipart/form-data', 'multipart/form-data')):
                     post_arg = dict(self.flatten_django_lists(request.POST.lists()))
-                else:
+                elif request.body:
                     post_arg = self.deserialize(request, request.body,
                         format=request.META.get('CONTENT_TYPE', 'application/json'))
                 kwargs.update(post_arg)
@@ -185,7 +187,18 @@ class ChemblModelResource(ModelResource):
 
         request = bundle.request
         get_failed = False
-        paginator_info = {'limit': int(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', 20))), 'offset': int(kwargs.pop('offset', 0))}
+
+        try:
+            limit = int(re.search(r'^\d+', str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
+        except(ValueError, AttributeError):
+            limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
+
+        try:
+            offset = int(re.search(r'^\d+', str(kwargs.pop('offset', "0"))).group())
+        except(ValueError, AttributeError):
+            offset = 0
+
+        paginator_info = {'limit': limit, 'offset': offset}
         max_limit = self._meta.max_limit
 
         try:
@@ -217,7 +230,7 @@ class ChemblModelResource(ModelResource):
             except Exception as e:
                 page['in_cache'] = False
                 get_failed = True
-                self.log.error('Caching get exception', exc_info=True, extra={'bundle': bundle,})
+                self.log.error('Caching get exception', exc_info=True, extra={'bundle': request.path,})
 
         in_cache = all(page.get('in_cache') for page in pages) and (len(pages) == 1 or pages[0]['count'] == pages[1]['count'])
         if not in_cache:
@@ -257,7 +270,7 @@ class ChemblModelResource(ModelResource):
                         try:
                             self._meta.cache.set(page.get('cache_key'), {'slice':slice, 'count': meta.get('total_count')})
                         except Exception:
-                            self.log.error('Caching set exception', exc_info=True, extra={'bundle': bundle,})
+                            self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path,})
                             get_failed = False
 
         else:
@@ -296,7 +309,7 @@ class ChemblModelResource(ModelResource):
         except Exception:
             cached_bundle = None
             get_failed = True
-            self.log.error('Caching get exception', exc_info=True, extra={'bundle': bundle,})
+            self.log.error('Caching get exception', exc_info=True, extra={'bundle': bundle.request.path,})
 
         if cached_bundle is None:
             in_cache = False
@@ -305,7 +318,7 @@ class ChemblModelResource(ModelResource):
                 try:
                     self._meta.cache.set(cache_key, cached_bundle)
                 except Exception:
-                    self.log.error('Caching set exception', exc_info=True, extra={'bundle': cached_bundle,})
+                    self.log.error('Caching set exception', exc_info=True, extra={'bundle': bundle.request.path,})
 
         return cached_bundle, in_cache
 
