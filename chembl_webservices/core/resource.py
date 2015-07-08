@@ -172,6 +172,8 @@ class ChemblModelResource(ModelResource):
         elif 'MDL-1250' in msg:
             raise BadRequest("SIMILAR search query can not be a NOSTRUCT or unconnected H or LP atom, got: %s" %
                              kwargs.get('smiles'))
+        elif 'Full-text search' in msg:
+            raise BadRequest("Full text search is not implemented yet.")
         else:
             raise ImmediateHttpResponse(response=self._handle_500(request, error))
 
@@ -243,7 +245,7 @@ class ChemblModelResource(ModelResource):
             sorted_objects = self.prefetch_related(sorted_objects)
             try:
                 count = sorted_objects.count()
-            except DatabaseError as e:
+            except (DatabaseError, NotImplementedError) as e:
                 self._handle_database_error(e, request, kwargs)
             if count < max_limit:
                 len(sorted_objects)
