@@ -368,14 +368,19 @@ _SMILES_.
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+    def decode_plus(self, kwargs):
+        return {k: v.replace(' ', '+') if
+            (isinstance(k,basestring) and k.startswith('molecule_structures__canonical_smiles'))
+                else v for k,v in kwargs.items() }
+
+#-----------------------------------------------------------------------------------------------------------------------
+
     def remove_api_resource_names(self, kwargs):
         aliases = {'smiles': 'molecule_structures__canonical_smiles'}
         for alias, name in aliases.items():
             if alias in kwargs:
                 kwargs[name] = kwargs.pop(alias)
-        decoded_kwargs = {k: v.replace(' ', '+') if
-                          (isinstance(k,basestring) and k.startswith('molecule_structures__canonical_smiles'))
-                            else v for k,v in kwargs.items() }
+        decoded_kwargs = self.decode_plus(kwargs)
         return super(MoleculeResource, self).remove_api_resource_names(decoded_kwargs)
 
 #-----------------------------------------------------------------------------------------------------------------------

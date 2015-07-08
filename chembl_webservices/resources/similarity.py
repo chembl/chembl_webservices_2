@@ -305,7 +305,7 @@ class SimilarityResource(MoleculeResource):
 #-----------------------------------------------------------------------------------------------------------------------
 
     def remove_api_resource_names(self, kwargs):
-        return super(MoleculeResource, self).remove_api_resource_names(kwargs)
+        return super(MoleculeResource, self).remove_api_resource_names(self.decode_plus(kwargs))
 
 #-----------------------------------------------------------------------------------------------------------------------
 
