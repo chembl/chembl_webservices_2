@@ -258,7 +258,8 @@ You can specify optional parameters:
 #-----------------------------------------------------------------------------------------------------------------------
 
     def render_svg(self, molstring, size, ignoreCoords):
-        mol = Chem.MolFromMolBlock(str(molstring))
+        mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
+        mol.UpdatePropertyCache(strict=False)
         if ignoreCoords:
             AllChem.Compute2DCoords(mol)
 
@@ -278,7 +279,8 @@ You can specify optional parameters:
 #-----------------------------------------------------------------------------------------------------------------------
 
     def render_json(self, molstring, size, ignoreCoords):
-        mol = Chem.MolFromMolBlock(str(molstring))
+        mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
+        mol.UpdatePropertyCache(strict=False)
         if ignoreCoords:
             AllChem.Compute2DCoords(mol)
 
@@ -294,7 +296,8 @@ You can specify optional parameters:
             fontSize = int(size / 33)
             if size < 200:
                 fontSize = 1
-            mol = Chem.MolFromMolBlock(str(molstring))
+            mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
+            mol.UpdatePropertyCache(strict=False)
             if ignoreCoords:
                 AllChem.Compute2DCoords(mol)
 
@@ -371,7 +374,8 @@ You can specify optional parameters:
         fontSize = int(size / 33)
         if size < 200:
             fontSize = 1
-        mol = Chem.MolFromMolBlock(str(molstring))
+        mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
+        mol.UpdatePropertyCache(strict=False)
         if ignoreCoords:
             AllChem.Compute2DCoords(mol)
 
