@@ -1,6 +1,7 @@
 __author__ = 'mnowotka'
 
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
+import re
 import time
 import warnings
 from collections import OrderedDict
@@ -82,15 +83,6 @@ class SimilarityResource(MoleculeResource):
             raise BadRequest("Structure or identifier required.")
 
         similarity = kwargs.pop('similarity')
-        if not similarity:
-            raise BadRequest("Similarity parameter is required.")
-        else:
-            try:
-                sim = int(similarity)
-                if sim < 70 or sim > 100:
-                    raise BadRequest("Invalid Similarity Score supplied: %s" % similarity)
-            except ValueError:
-                raise BadRequest("Invalid Similarity Score supplied: %s" % similarity)
         if not smiles:
             if chembl_id:
                 mol_filters = {'chembl_id':chembl_id}
@@ -188,17 +180,38 @@ class SimilarityResource(MoleculeResource):
 
         Should return a HttpResponse (200 OK).
         """
-        # TODO: Uncached for now. Invalidation that works for everyone may be
-        #       impossible.
+
         start = time.time()
+
+        try:
+            if not kwargs.get('similarity'):
+                raise BadRequest("Similarity parameter is required.")
+            original_similarity = kwargs['similarity']
+            kwargs['similarity'] = int(re.search(r'^\d+', kwargs.get('similarity', "0")).group())
+            similarity = kwargs.get('similarity', 0)
+            if similarity < 70 or similarity > 100:
+                raise BadRequest("Invalid Similarity Score supplied: %s" % original_similarity)
+        except(ValueError, AttributeError):
+            raise BadRequest("Invalid Similarity Score supplied: %s" % original_similarity)
+
         base_bundle = self.build_bundle(request=request)
         objects, in_cache = self.cached_obj_get_list(bundle=base_bundle, **self.remove_api_resource_names(kwargs))
 
-        paginator_info = {'limit': int(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', 20))), 'offset': int(kwargs.pop('offset', 0))}
+        try:
+            limit = int(re.search(r'^\d+', str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
+        except(ValueError, AttributeError):
+            limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
+
+        try:
+            offset = int(re.search(r'^\d+', str(kwargs.pop('offset', "0"))).group())
+        except(ValueError, AttributeError):
+            offset = 0
+
+        paginator_info = {'limit': limit, 'offset': offset}
 
         paginator = self._meta.paginator_class(paginator_info, objects, resource_uri=self.get_resource_uri(),
             limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                method=request.method, params=self.remove_api_resource_names(kwargs))
+                method=request.method, params=self.remove_api_resource_names(kwargs), format=request.format)
         to_be_serialized = paginator.page()
 
         # Dehydrate the bundles in preparation for serialization.
