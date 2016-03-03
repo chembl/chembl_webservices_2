@@ -15,6 +15,9 @@ try:
 except ImportError:
     from chembl_core_model.models import AtcClassification
 
+from chembl_webservices.core.fields import monkeypatch_tastypie_field
+monkeypatch_tastypie_field()
+
 #-----------------------------------------------------------------------------------------------------------------------
 
 class AtcResource(ChemblModelResource):
@@ -88,7 +91,7 @@ class AtcResource(ChemblModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def get_detail(self, request, **kwargs):
+    def get_detail_impl(self, request, basic_bundle, **kwargs):
         """
         Returns a single serialized resource.
 
@@ -97,8 +100,6 @@ class AtcResource(ChemblModelResource):
 
         Should return a HttpResponse (200 OK).
         """
-        start = time.time()
-        basic_bundle = self.build_bundle(request=request)
 
         try:
             obj, in_cache = self.cached_obj_get_list(bundle=basic_bundle, **self.remove_api_resource_names(kwargs))
@@ -121,11 +122,7 @@ class AtcResource(ChemblModelResource):
 
             obj[self._meta.collection_name] = bundles
             obj = self.alter_list_data_to_serialize(request, obj)
-            res = self.create_response(request, obj)
-            if WS_DEBUG:
-                end = time.time()
-                res['X-ChEMBL-in-cache'] = in_cache
-                res['X-ChEMBL-retrieval-time'] = end - start
-            return res
+
+            return obj, in_cache
 
 #-----------------------------------------------------------------------------------------------------------------------

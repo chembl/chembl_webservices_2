@@ -1,5 +1,8 @@
 __author__ = 'mnowotka'
 
+import warnings
+from tastypie.exceptions import InvalidSortError
+
 import re
 import time
 import logging
@@ -15,6 +18,8 @@ from tastypie.resources import convert_post_to_put
 from tastypie.utils import dict_strip_unicode_keys
 from tastypie.utils.mime import build_content_type
 from tastypie.exceptions import NotFound
+from tastypie import fields
+import json
 from django.utils import six
 from django.http import HttpResponse
 from django.http import HttpResponseNotFound
@@ -24,10 +29,17 @@ from django.conf import settings
 from django.core.signals import got_request_exception
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import MultipleObjectsReturned
+from django.core.exceptions import ValidationError
 from django.core.exceptions import FieldError
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from django.db import DatabaseError
+
+try:
+    from haystack.query import SearchQuerySet
+    sqs = SearchQuerySet()
+except:
+    sqs = None
 
 # If ``csrf_exempt`` isn't present, stub it.
 try:
@@ -61,6 +73,7 @@ class ChemblModelResource(ModelResource):
         return [
             url(r"^(?P<resource_name>%s)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_list"),
             url(r"^(?P<resource_name>%s)/schema\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/datatables\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_datatables'), name="api_get_datatables"),
             url(r"^(?P<resource_name>%s)/set/(?P<%s_list>\w[\w/;-]*)\.(?P<format>\w+)$" % (self._meta.resource_name,  self._meta.detail_uri_name), self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
@@ -105,9 +118,123 @@ class ChemblModelResource(ModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+    def get_datatables(self, request, **kwargs):
+        """
+        Returns a serialized form of the schema of the resource.
+
+        Calls ``build_schema`` to generate the data. This method only responds
+        to HTTP GET.
+
+        Should return a HttpResponse (200 OK).
+        """
+        self.method_check(request, allowed=['get'])
+        self.is_authenticated(request)
+        self.throttle_check(request)
+        self.log_throttled_access(request)
+        bundle = self.build_bundle(request=request)
+        self.authorized_read_detail(self.get_object_list(bundle.request), bundle)
+        return self.create_response(request, self.build_columns_info())
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def build_columns_info(self):
+        columns = []
+        core_fields = set([k for k, v in self.fields.items() if not getattr(v, 'is_related', False)])
+        for field_name, field_object in self.fields.items():
+            if not getattr(field_object, 'is_related', False):
+                if field_object.use_in != 'all':
+                    continue
+                column = dict()
+                column["title"] = field_name.replace('_', ' ')
+                column["data"] = field_name
+                if field_object.null:
+                    column["defaultContent"] = "<i>Not set</i>"
+                if field_name in self._meta.ordering:
+                    column["orderable"] = True
+                else:
+                    column["orderable"] = False
+                columns.append(column)
+            elif not getattr(field_object, 'is_m2m', False):
+                related_columns = field_object.get_related_resource(None).build_columns_info()
+                for r in related_columns["columns"]:
+                    if r["data"] in core_fields:
+                        continue
+                    r["data"] = field_name + "." + r["data"]
+                    columns.append(r)
+        return {"columns": columns}
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def build_schema(self):
+        data = super(ChemblModelResource, self).build_schema()
+        for field_name, field_object in self.fields.items():
+            if getattr(field_object, 'is_related', False):
+                nested_schema = field_object.get_related_resource(None).build_schema()
+                del nested_schema['allowed_detail_http_methods']
+                del nested_schema['allowed_list_http_methods']
+                del nested_schema['default_format']
+                del nested_schema['default_limit']
+                data['fields'][field_name]['schema'] = nested_schema
+        return data
+
+#-----------------------------------------------------------------------------------------------------------------------
+
     def apply_sorting(self, obj_list, options=None):
         try:
-            return super(ChemblModelResource, self).apply_sorting(obj_list, options)
+            if options is None:
+                options = {}
+
+            parameter_name = 'order_by'
+
+            if not 'order_by' in options:
+                if not 'sort_by' in options:
+                    # Nothing to alter the order. Return what we've got.
+                    return obj_list
+                else:
+                    warnings.warn("'sort_by' is a deprecated parameter. Please use 'order_by' instead.")
+                    parameter_name = 'sort_by'
+
+            order_by_args = []
+
+            if hasattr(options, 'getlist'):
+                order_bits = options.getlist(parameter_name)
+            else:
+                order_bits = options.get(parameter_name)
+
+                if not isinstance(order_bits, (list, tuple)):
+                    order_bits = [order_bits]
+
+            for order_by in order_bits:
+                order_by_bits = order_by.split(LOOKUP_SEP)
+
+                field_name = order_by_bits[0]
+                order = ''
+
+                if order_by_bits[0].startswith('-'):
+                    field_name = order_by_bits[0][1:]
+                    order = '-'
+
+                if not field_name in self.fields:
+                    # It's not a field we know about. Move along citizen.
+                    raise InvalidSortError("No matching '%s' field for ordering on." % field_name)
+
+                if not field_name in self._meta.ordering:
+                    raise InvalidSortError("The '%s' field does not allow ordering." % field_name)
+
+                if self.fields[field_name].attribute is None:
+                    raise InvalidSortError("The '%s' field has no 'attribute' for ordering with." % field_name)
+
+                field = self.fields[field_name]
+                if getattr(field, 'is_related', False) and len(order_by_bits) == 2:
+                    related_resource = field.get_related_resource(None)
+                    related_field_name = order_by_bits[1]
+                    if related_field_name in related_resource.fields:
+                        order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] + [related_resource.fields[related_field_name].attribute])))
+                        continue
+
+                order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] + order_by_bits[1:])))
+
+            return obj_list.order_by(*order_by_args)
         except FieldError as e:
             return self.answerBadRequest(None, e)
 
@@ -116,32 +243,59 @@ class ChemblModelResource(ModelResource):
     def wrap_view(self, view):
         @csrf_exempt
         def wrapper(request, *args, **kwargs):
-            request.format = kwargs.get('format', None)
-            request.POST.dict() # touch this dict here ti populate data, strange problem with Django...
+            try:
+                request.format = kwargs.get('format', None)
+                request.POST.dict() # touch this dict here ti populate data, strange problem with Django...
 
-            if request.method == 'GET':
-                kwargs.update(dict(self.flatten_django_lists(request.GET.lists())))
+                if request.method == 'GET':
+                    kwargs.update(dict(self.flatten_django_lists(request.GET.lists())))
 
-            elif request.method == 'POST':
-                post_arg = dict()
-                if request.META.get('CONTENT_TYPE', 'application/json').startswith(
-                    ('multipart/form-data', 'multipart/form-data')):
-                    post_arg = dict(self.flatten_django_lists(request.POST.lists()))
-                elif request.body:
-                    post_arg = self.deserialize(request, request.body,
-                        format=request.META.get('CONTENT_TYPE', 'application/json'))
-                kwargs.update(post_arg)
+                elif request.method == 'POST':
+                    post_arg = dict()
+                    if request.META.get('CONTENT_TYPE', 'application/json').startswith(
+                        ('multipart/form-data', 'multipart/form-data')):
+                        post_arg = dict(self.flatten_django_lists(request.POST.lists()))
+                    elif request.body:
+                        post_arg = self.deserialize(request, request.body,
+                            format=request.META.get('CONTENT_TYPE', 'application/json'))
+                    kwargs.update(post_arg)
 
-            request.format = kwargs.pop('format', None)
+                request.format = kwargs.pop('format', None)
 
-            if 'chembl_id' in kwargs and isinstance(kwargs['chembl_id'], basestring):
-                kwargs['chembl_id'] = kwargs['chembl_id'].upper()
+                if 'chembl_id' in kwargs and isinstance(kwargs['chembl_id'], basestring):
+                    kwargs['chembl_id'] = kwargs['chembl_id'].upper()
 
-            if 'chembl_id_list' in kwargs and isinstance(kwargs['chembl_id_list'], basestring):
-                kwargs['chembl_id_list'] = kwargs['chembl_id_list'].upper()
+                if 'chembl_id_list' in kwargs and isinstance(kwargs['chembl_id_list'], basestring):
+                    kwargs['chembl_id_list'] = kwargs['chembl_id_list'].upper()
 
-            wrapped_view = super(ChemblModelResource, self).wrap_view(view)
-            return wrapped_view(request, *args, **kwargs)
+                wrapped_view = super(ChemblModelResource, self).wrap_view(view)
+                return wrapped_view(request, *args, **kwargs)
+
+            except (BadRequest, fields.ApiFieldError) as e:
+                data = {"error": e.args[0] if getattr(e, 'args') else ''}
+                return self.error_response(request, data, response_class=http.HttpBadRequest)
+            except ValidationError as e:
+                data = {"error": e.messages}
+                return self.error_response(request, data, response_class=http.HttpBadRequest)
+            except Exception as e:
+                if hasattr(e, 'response'):
+                    return e.response
+
+                # A real, non-expected exception.
+                # Handle the case where the full traceback is more helpful
+                # than the serialized error.
+                if settings.DEBUG and getattr(settings, 'TASTYPIE_FULL_DEBUG', False):
+                    raise
+
+                # Re-raise the error to get a proper traceback when the error
+                # happend during a test case
+                if request.META.get('SERVER_NAME') == 'testserver':
+                    raise
+
+                # Rather than re-raising, we're going to things similar to
+                # what Django does. The difference is returning a serialized
+                # error message.
+                return self._handle_500(request, e)
 
         return wrapper
 
@@ -180,120 +334,246 @@ class ChemblModelResource(ModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def cached_obj_get_list(self, bundle, **kwargs):
-        """
-        A version of ``obj_get_list`` that uses the cache as a means to get
-        commonly-accessed data faster.
-        """
-        kwargs = self.unqote_args(kwargs)
+    def list_cache_handler(self, f):
 
-        request = bundle.request
-        get_failed = False
+        def handle(bundle, cache_key_name, url_name, **kwargs):
+            """
+            A version of ``obj_get_list`` that uses the cache as a means to get
+            commonly-accessed data faster.
+            """
+            kwargs = self.unqote_args(kwargs)
 
-        try:
-            limit = int(re.search(r'^\d+', str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
-        except(ValueError, AttributeError):
-            limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
+            request = bundle.request
+            get_failed = False
 
-        try:
-            offset = int(re.search(r'^\d+', str(kwargs.pop('offset', "0"))).group())
-        except(ValueError, AttributeError):
-            offset = 0
-
-        paginator_info = {'limit': limit, 'offset': offset}
-        max_limit = self._meta.max_limit
-
-        try:
-            start_slice = (paginator_info['offset'] / max_limit) * max_limit
-            end_slice = ((paginator_info['offset'] + paginator_info['limit']) / max_limit) * max_limit
-        except ValueError:
-            raise BadRequest("Invalid limit or offset provided. Please provide integers.")
-        if start_slice == end_slice:
-            pages = [{'offset':start_slice, 'limit':max_limit}]
-        else:
-            pages = [{'offset':start_slice, 'limit':max_limit}, {'offset':end_slice, 'limit':max_limit}]
-
-        for page in pages:
-            if get_failed:
-                page['in_cache'] = False
-                continue
-            page_kwargs = kwargs.copy()
-            page_kwargs.update(page)
-            cache_key = self.generate_cache_key('list', **page_kwargs)
-            page['cache_key'] = cache_key
             try:
-                chunk = self._meta.cache.get(cache_key)
-                if chunk:
-                    page['slice'] = chunk.get('slice')
-                    page['count'] = chunk.get('count')
-                    page['in_cache'] = True
-                else:
-                    page['in_cache'] = False
-            except Exception as e:
-                page['in_cache'] = False
-                get_failed = True
-                self.log.error('Caching get exception', exc_info=True, extra={'bundle': request.path,})
+                limit = int(re.search(r'^\d+',
+                                    str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
+            except(ValueError, AttributeError):
+                limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
 
-        in_cache = all(page.get('in_cache') for page in pages) and (len(pages) == 1 or pages[0]['count'] == pages[1]['count'])
-        if not in_cache:
-            all_request_params = request.GET.copy()
-            all_request_params.update(request.POST)
-            objects = self.obj_get_list(bundle=bundle, **kwargs)
-            #if isinstance(objects, HttpResponse):
-            #    raise ImmediateHttpResponse(response=objects)
-            sorted_objects = self.apply_sorting(objects, options=all_request_params)
-            sorted_objects = self.prefetch_related(sorted_objects)
             try:
-                count = sorted_objects.count()
-            except (DatabaseError, NotImplementedError) as e:
-                self._handle_database_error(e, request, kwargs)
-            if count < max_limit:
-                len(sorted_objects)
-            objs = []
-            paginator = self._meta.paginator_class(paginator_info, sorted_objects, resource_uri=self.get_resource_uri(),
-                limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                format=request.format, params=kwargs, method=request.method)
-            meta = paginator.get_meta(False)
-            meta['total_count'] = count
-            if request.method.upper() == 'GET':
-                meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
-                meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(), meta['total_count'])
+                offset = int(re.search(r'^\d+', str(kwargs.pop('offset', "0"))).group())
+            except(ValueError, AttributeError):
+                offset = 0
+
+            paginator_info = {'limit': limit, 'offset': offset}
+            max_limit = self._meta.max_limit
+
+            try:
+                start_slice = (paginator_info['offset'] / max_limit) * max_limit
+                end_slice = ((paginator_info['offset'] + paginator_info['limit']) / max_limit) * max_limit
+            except ValueError:
+                raise BadRequest("Invalid limit or offset provided. Please provide integers.")
+            if start_slice == end_slice:
+                pages = [{'offset':start_slice, 'limit':max_limit}]
+            else:
+                pages = [{'offset':start_slice, 'limit':max_limit}, {'offset':end_slice, 'limit':max_limit}]
+
             for page in pages:
-                if page.get('in_cache') and page.get('count') == meta.get('total_count'):
-                    objs.extend(page.get('slice'))
-                else:
-                    paginator = self._meta.paginator_class(page, sorted_objects, resource_uri=self.get_resource_uri(),
-                        limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                        format=request.format, params=kwargs, method=request.method)
-                    slice = paginator.get_slice(paginator.get_limit(), paginator.get_offset())
-                    len(slice)
-                    objs.extend(slice)
-                    if not get_failed:
-                        try:
-                            self._meta.cache.set(page.get('cache_key'), {'slice':slice, 'count': meta.get('total_count')})
-                        except Exception:
-                            self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path,})
-                            get_failed = False
+                if get_failed:
+                    page['in_cache'] = False
+                    continue
+                page_kwargs = kwargs.copy()
+                page_kwargs.update(page)
+                cache_key = self.generate_cache_key(cache_key_name, **page_kwargs)
+                page['cache_key'] = cache_key
+                try:
+                    chunk = self._meta.cache.get(cache_key)
+                    if chunk:
+                        page['slice'] = chunk.get('slice')
+                        page['count'] = chunk.get('count')
+                        page['in_cache'] = True
+                    else:
+                        page['in_cache'] = False
+                except Exception as e:
+                    page['in_cache'] = False
+                    get_failed = True
+                    self.log.error('Caching get exception', exc_info=True, extra={'bundle': request.path,})
 
-        else:
-            objs = list(itertools.chain.from_iterable([page.get('slice') for page in pages]))
-            paginator = self._meta.paginator_class(paginator_info, [], resource_uri=self.get_resource_uri(),
-                limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                format=request.format, params=kwargs, method=request.method)
-            meta = paginator.get_meta(False)
-            meta['total_count'] = pages[0]['count']
-            if request.method.upper() == 'GET':
-                meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
-                meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(), meta['total_count'])
+            in_cache = all(page.get('in_cache') for page in pages) and \
+                                                        (len(pages) == 1 or pages[0]['count'] == pages[1]['count'])
+            if not in_cache:
+                #all_request_params = request.GET.copy()
+                #all_request_params.update(request.POST)
+                sorted_objects = f(bundle, **kwargs)
+                try:
+                    count = sorted_objects.count() if not isinstance(sorted_objects, list) else len(sorted_objects)
+                except (DatabaseError, NotImplementedError) as e:
+                    self._handle_database_error(e, request, kwargs)
+                if count < max_limit:
+                    len(sorted_objects)
+                objs = []
+                paginator = self._meta.paginator_class(paginator_info, sorted_objects, resource_uri=self.get_resource_uri(None, url_name),
+                    limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
+                    format=request.format, params=kwargs, method=request.method)
+                meta = paginator.get_meta(False)
+                meta['total_count'] = count
+                if request.method.upper() == 'GET':
+                    meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
+                    meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(), meta['total_count'])
+                for page in pages:
+                    if page.get('in_cache') and page.get('count') == meta.get('total_count'):
+                        objs.extend(page.get('slice'))
+                    else:
+                        paginator = self._meta.paginator_class(page, sorted_objects, resource_uri=self.get_resource_uri(None, url_name),
+                            limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
+                            format=request.format, params=kwargs, method=request.method)
+                        slice = paginator.get_slice(paginator.get_limit(), paginator.get_offset())
+                        len(slice)
+                        objs.extend(slice)
+                        if not get_failed:
+                            try:
+                                self._meta.cache.set(page.get('cache_key'), {'slice':slice, 'count': meta.get('total_count')})
+                            except Exception:
+                                self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path,})
+                                get_failed = False
 
-        offset = meta.get('offset') - start_slice
+            else:
+                objs = list(itertools.chain.from_iterable([page.get('slice') for page in pages]))
+                paginator = self._meta.paginator_class(paginator_info, [], resource_uri=self.get_resource_uri(None, url_name),
+                    limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
+                    format=request.format, params=kwargs, method=request.method)
+                meta = paginator.get_meta(False)
+                meta['total_count'] = pages[0]['count']
+                if request.method.upper() == 'GET':
+                    meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
+                    meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(), meta['total_count'])
 
-        obj_list = {
-        self._meta.collection_name: objs[offset:offset + meta.get('limit')],
-        'page_meta': meta,
-        }
+            offset = meta.get('offset') - start_slice
 
-        return obj_list, in_cache
+            obj_list = {
+            self._meta.collection_name: objs[offset:offset + meta.get('limit')],
+            'page_meta': meta,
+            }
+
+            return obj_list, in_cache
+
+        return handle
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def get_search_results(self, user_query):
+
+        res = []
+
+        try:
+            queryset = self._meta.queryset
+            model = queryset.model
+            res = sqs.models(model).load_all().auto_query(user_query).values_list('pk', 'score')
+        except Exception as e:
+            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
+
+        return dict(res)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def check_user_search_query(self, user_query):
+        if len(user_query) < 3:
+            raise BadRequest('Search query too short')
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def search_source(self, bundle, **kwargs):
+
+        user_query = kwargs.get('q')
+
+        try:
+            if not sqs:
+                self.log.error('No search query set', exc_info=True, extra={'request': user_query,})
+                return self._meta.queryset.none()
+        except Exception as e:
+            self.log.error('Search error in search_resource', exc_info=True, extra={'request': user_query,})
+            return self._meta.queryset.none()
+
+        if not user_query:
+            raise BadRequest('No search query provided')
+        self.check_user_search_query(user_query)
+
+        queryset = self._meta.queryset
+        res = self.get_search_results(user_query)
+        filters = {}
+
+        if hasattr(bundle.request, 'GET'):
+            # Grab a mutable copy.
+            filters = dict(self.flatten_django_lists(bundle.request.GET.lists()))
+
+        # Update with the provided kwargs.
+        filters.update(kwargs)
+        applicable_filters, distinct = self.build_filters(filters=filters)
+
+        try:
+            objects = queryset.filter(pk__in=res.keys()).filter(**applicable_filters)
+            if distinct:
+                objects = objects.distinct()
+            objects = self.authorized_read_list(objects, bundle)
+            objects = self.prefetch_related(objects)
+            if res.keys() and isinstance(res.keys()[0], int):
+                for obj in objects:
+                    obj.score = float(int(res[obj.pk]))
+            else:
+                for obj in objects:
+                    obj.score = float(res[str(obj.pk)])
+            return sorted(objects, key=lambda obj: obj.score, reverse=True)
+
+        except TypeError as e:
+            if e.message.startswith('Related Field has invalid lookup:'):
+                raise BadRequest(e.message)
+            else:
+                raise e
+        except ValueError:
+            raise BadRequest("Invalid resource lookup data provided (mismatched type).")
+
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def list_source(self, bundle, **kwargs):
+        objects = self.obj_get_list(bundle=bundle, **kwargs)
+        sorted_objects = self.apply_sorting(objects, options=kwargs)
+        sorted_objects = self.prefetch_related(sorted_objects)
+        return sorted_objects
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def cached_obj_get_list(self, bundle, **kwargs):
+        return self.list_cache_handler(self.list_source)(bundle, 'list', 'api_dispatch_list', **kwargs)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def cached_obj_get_search(self, bundle, **kwargs):
+        return self.list_cache_handler(self.search_source)(bundle, 'search', 'api_get_search', **kwargs)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def detail_cache_handler(self,f):
+
+        def handle(bundle, cache_key, **kwargs):
+            """
+            A version of ``obj_get`` that uses the cache as a means to get
+            commonly-accessed data faster.
+            """
+            cache_key = self.generate_cache_key(cache_key, **kwargs)
+            get_failed = False
+            in_cache = True
+
+            try:
+                cached_bundle = self._meta.cache.get(cache_key)
+            except Exception:
+                cached_bundle = None
+                get_failed = True
+                self.log.error('Caching get exception', exc_info=True, extra={'bundle': bundle.request.path,})
+
+            if cached_bundle is None:
+                in_cache = False
+                cached_bundle = f(bundle=bundle, **kwargs)
+                if not get_failed:
+                    try:
+                        self._meta.cache.set(cache_key, cached_bundle)
+                    except Exception:
+                        self.log.error('Caching set exception', exc_info=True, extra={'bundle': bundle.request.path,})
+
+            return cached_bundle, in_cache
+        return handle
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -302,51 +582,115 @@ class ChemblModelResource(ModelResource):
         A version of ``obj_get`` that uses the cache as a means to get
         commonly-accessed data faster.
         """
-        cache_key = self.generate_cache_key('detail', **kwargs)
-        get_failed = False
-        in_cache = True
 
-        try:
-            cached_bundle = self._meta.cache.get(cache_key)
-        except Exception:
-            cached_bundle = None
-            get_failed = True
-            self.log.error('Caching get exception', exc_info=True, extra={'bundle': bundle.request.path,})
+        return self.detail_cache_handler(self.obj_get)(bundle, 'detail', **kwargs)
 
-        if cached_bundle is None:
-            in_cache = False
-            cached_bundle = self.obj_get(bundle=bundle, **kwargs)
-            if not get_failed:
-                try:
-                    self._meta.cache.set(cache_key, cached_bundle)
-                except Exception:
-                    self.log.error('Caching set exception', exc_info=True, extra={'bundle': bundle.request.path,})
+#-----------------------------------------------------------------------------------------------------------------------
 
-        return cached_bundle, in_cache
+    def response(self, f):
+
+        def get_something(request, **kwargs):
+            start = time.time()
+            basic_bundle = self.build_bundle(request=request)
+
+            ret = f(request, basic_bundle, **kwargs)
+            if isinstance(ret, tuple) and len(ret) == 2:
+                bundle, in_cache = ret
+            else:
+                return ret
+
+            res = self.create_response(request, bundle)
+            if WS_DEBUG:
+                end = time.time()
+                res['X-ChEMBL-in-cache'] = in_cache
+                res['X-ChEMBL-retrieval-time'] = end - start
+            return res
+
+        return get_something
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def full_dehydrate(self, bundle, for_list=False, for_search=False):
+        """
+        Given a bundle with an object instance, extract the information from it
+        to populate the resource.
+        """
+
+        if not for_search:
+            use_in = ['all', 'list' if for_list else 'detail']
+        else:
+            use_in = ['all', 'search']
+
+        # Dehydrate each field.
+        for field_name, field_object in self.fields.items():
+            # If it's not for use in this mode, skip
+            field_use_in = getattr(field_object, 'use_in', 'all')
+            if callable(field_use_in):
+                if not field_use_in(bundle):
+                    continue
+            else:
+                if field_use_in not in use_in:
+                    continue
+
+            # A touch leaky but it makes URI resolution work.
+            if getattr(field_object, 'dehydrated_type', None) == 'related':
+                field_object.api_name = self._meta.api_name
+                field_object.resource_name = self._meta.resource_name
+
+            bundle.data[field_name] = field_object.dehydrate(bundle, for_list=for_list)
+
+            # Check for an optional method to do further dehydration.
+            method = getattr(self, "dehydrate_%s" % field_name, None)
+
+            if method:
+                bundle.data[field_name] = method(bundle)
+
+        bundle = self.dehydrate(bundle)
+        return bundle
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def serialise_list(self,f, for_list, for_search):
+
+        def handler(request, base_bundle, **kwargs):
+            to_be_serialized, in_cache = f(bundle=base_bundle,
+                **self.remove_api_resource_names(kwargs))
+
+            # Dehydrate the bundles in preparation for serialization.
+            bundles = []
+
+            for obj in to_be_serialized[self._meta.collection_name]:
+                bundle = self.build_bundle(obj=obj, request=request)
+                bundles.append(self.full_dehydrate(bundle, for_list=for_list, for_search=for_search))
+
+            to_be_serialized[self._meta.collection_name] = bundles
+            to_be_serialized = self.alter_list_data_to_serialize(request, to_be_serialized)
+
+            return to_be_serialized, in_cache
+
+        return handler
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def get_list_impl(self, request, base_bundle, **kwargs):
+        return self.serialise_list(self.cached_obj_get_list, for_list=True, for_search=False)(
+                                                    request, base_bundle, **self.remove_api_resource_names(kwargs))
 
 #-----------------------------------------------------------------------------------------------------------------------
 
     def get_list(self, request, **kwargs):
-        start = time.time()
-        base_bundle = self.build_bundle(request=request)
-        to_be_serialized, in_cache = self.cached_obj_get_list(bundle=base_bundle,
-            **self.remove_api_resource_names(kwargs))
+        return self.response(self.get_list_impl)(request, **kwargs)
 
-        # Dehydrate the bundles in preparation for serialization.
-        bundles = []
+#-----------------------------------------------------------------------------------------------------------------------
 
-        for obj in to_be_serialized[self._meta.collection_name]:
-            bundle = self.build_bundle(obj=obj, request=request)
-            bundles.append(self.full_dehydrate(bundle, for_list=True))
+    def get_search_impl(self, request, base_bundle, **kwargs):
+        return self.serialise_list(self.cached_obj_get_search, for_list=False, for_search=True)(
+                                                    request, base_bundle, **self.remove_api_resource_names(kwargs))
 
-        to_be_serialized[self._meta.collection_name] = bundles
-        to_be_serialized = self.alter_list_data_to_serialize(request, to_be_serialized)
-        res = self.create_response(request, to_be_serialized)
-        if WS_DEBUG:
-            end = time.time()
-            res['X-ChEMBL-in-cache'] = in_cache
-            res['X-ChEMBL-retrieval-time'] = end - start
-        return res
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def get_search(self, request, **kwargs):
+        return self.response(self.get_search_impl)(request, **kwargs)
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -359,11 +703,13 @@ class ChemblModelResource(ModelResource):
 
         Should return a HttpResponse (200 OK).
         """
-        start = time.time()
-        basic_bundle = self.build_bundle(request=request)
+        return self.response(self.get_detail_impl)(request, **kwargs)
 
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def get_detail_impl(self, request, base_bundle, **kwargs):
         try:
-            obj, in_cache = self.cached_obj_get(bundle=basic_bundle, **self.remove_api_resource_names(kwargs))
+            obj, in_cache = self.cached_obj_get(bundle=base_bundle, **self.remove_api_resource_names(kwargs))
         except ObjectDoesNotExist:
             return http.HttpNotFound()
         except MultipleObjectsReturned:
@@ -372,12 +718,8 @@ class ChemblModelResource(ModelResource):
         bundle = self.build_bundle(obj=obj, request=request)
         bundle = self.full_dehydrate(bundle)
         bundle = self.alter_detail_data_to_serialize(request, bundle)
-        res = self.create_response(request, bundle)
-        if WS_DEBUG:
-            end = time.time()
-            res['X-ChEMBL-in-cache'] = in_cache
-            res['X-ChEMBL-retrieval-time'] = end - start
-        return res
+
+        return bundle, in_cache
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -619,7 +961,8 @@ class ChemblModelResource(ModelResource):
             "error_message": six.text_type(exception),
             "traceback": the_trace,
         }
-        self.log.error('_handle_500 error', exc_info=True, extra={'data': detailed_data, 'request': request, 'original_exception': exception})
+        self.log.error('_handle_500 error', exc_info=True, extra={'data': detailed_data, 'request': request,
+                                                                  'original_exception': exception})
         if settings.DEBUG:
             return self.error_response(request, detailed_data, response_class=response_class)
 
@@ -665,15 +1008,16 @@ class ChemblModelResource(ModelResource):
         if isinstance(order_bits, basestring):
             order_bits = [order_bits]
 
-        limit = kwargs.get('limit', '') if 'list' in args else ''
-        offset = kwargs.get('offset', '') if 'list' in args else ''
+        limit = kwargs.get('limit', '') if ('list' in args or 'search' in args) else ''
+        offset = kwargs.get('offset', '') if ('list' in args or 'search' in args) else ''
+        query = kwargs.get('q', '') if 'search' in args else ''
 
         for key, value in filters.items():
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                               str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                str(limit), str(offset), str(query), '|'.join(order_bits), '|'.join(sorted(smooshed)))
         return cache_key
 
 #-----------------------------------------------------------------------------------------------------------------------

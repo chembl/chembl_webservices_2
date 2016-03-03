@@ -19,6 +19,9 @@ from chembl_webservices.resources.substructure import SubstructureResource
 from chembl_webservices.resources.target import TargetResource
 from chembl_webservices.resources.target_components import TargetComponentsResource
 from chembl_webservices.resources.chembl_id import ChemblIdLookupResource
+from chembl_webservices.resources.go_slim import GoSlimResource
+from chembl_webservices.resources.indication import DrugIndicationResource
+from chembl_webservices.resources.metabolism import MetabolismResource
 
 __all__ = [
     'ActivityResource',
@@ -39,5 +42,8 @@ __all__ = [
     'SubstructureResource',
     'TargetResource',
     'TargetComponentsResource',
-    'ChemblIdLookupResource'
+    'ChemblIdLookupResource',
+    'GoSlimResource',
+    'DrugIndicationResource',
+    'MetabolismResource',
 ]

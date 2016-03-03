@@ -1,4 +1,6 @@
 include LICENSE
 include README.md
 
+recursive-include chembl_webservices/core *
 recursive-include chembl_webservices/resources *
+recursive-include chembl_webservices/templates *

@@ -3,6 +3,7 @@ __author__ = 'mnowotka'
 from tastypie import fields
 from tastypie.utils import trailing_slash
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
+from tastypie.exceptions import BadRequest
 from django.conf.urls import url
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
 from chembl_webservices.core.resource import ChemblModelResource
@@ -36,14 +37,23 @@ try:
 except ImportError:
     from chembl_core_model.models import MoleculeHierarchy
 
+try:
+    from haystack.query import SearchQuerySet
+    sqs = SearchQuerySet()
+except:
+    sqs = None
+
+from chembl_webservices.core.fields import monkeypatch_tastypie_field
+monkeypatch_tastypie_field()
+
 available_fields = [f.name for f in MoleculeDictionary._meta.fields]
 
 #-----------------------------------------------------------------------------------------------------------------------
 
 class MoleculeHierarchyResource(ChemblModelResource):
 
-    molecule_chembl_id = fields.CharField('molecule__chembl_id')
-    parent_chembl_id = fields.CharField('parent_molecule__chembl_id', null=True, blank=True)
+    molecule_chembl_id = fields.CharField('molecule__chembl__chembl_id')
+    parent_chembl_id = fields.CharField('parent_molecule__chembl__chembl_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = MoleculeHierarchy.objects.all()
@@ -164,6 +174,7 @@ class MoleculeResource(ChemblModelResource):
         'biotherapeutics', full=True, null=True, blank=True)
     atc_classifications = fields.ToManyField('chembl_webservices.resources.atc.AtcResource',
         'atcclassification_set', full=False, null=True, blank=True)
+    score = fields.FloatField('score', use_in='search', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = MoleculeDictionary.objects.all() if 'downgraded' not in available_fields else \
@@ -189,7 +200,7 @@ _SMILES_.
         serializer = ChEMBLApiSerializer(resource_name,
             {collection_name : resource_name, 'biocomponents':'biocomponent', 'molecule_synonyms': 'synonym', 'atc_classifications': 'level5'})
         detail_uri_name = 'chembl_id'
-        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'chembl', 'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy', 'compoundstructures', 'moleculehierarchy__parent_molecule']
+        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'chembl', 'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy', 'compoundstructures', 'moleculehierarchy__parent_molecule', 'moleculehierarchy__parent_molecule__chembl']
         fields = (
             'atc_classifications',
             'availability_type',
@@ -295,10 +306,13 @@ _SMILES_.
     def base_urls(self):
 
         return [
+            url(r"^(?P<resource_name>%s)/search%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_search'), name="api_get_search"),
+            url(r"^(?P<resource_name>%s)/search\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_search'), name="api_get_search"),
             url(r"^(?P<resource_name>%s)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_list'), name="api_dispatch_list"),
             url(r"^(?P<resource_name>%s)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_list"),
             url(r"^(?P<resource_name>%s)/schema%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_schema'), name="api_get_schema"),
             url(r"^(?P<resource_name>%s)/schema\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/datatables\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_datatables'), name="api_get_datatables"),
             url(r"^(?P<resource_name>%s)/set/(?P<chembl_id_list>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*(;[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/set/(?P<chembl_id_list>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*(;[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)*)\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/set/(?P<molecule_structures__standard_inchi_key_list>[A-Z]{14}-[A-Z]{10}-[A-Z](;[A-Z]{14}-[A-Z]{10}-[A-Z])*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_multiple'), name="api_get_multiple"),
@@ -466,15 +480,41 @@ _SMILES_.
         if isinstance(order_bits, basestring):
             order_bits = [order_bits]
 
-        limit = kwargs.get('limit', '') if 'list' in args else ''
-        offset = kwargs.get('offset', '') if 'list' in args else ''
+        limit = kwargs.get('limit', '') if ('list' in args or 'search' in args) else ''
+        offset = kwargs.get('offset', '') if ('list' in args or 'search' in args) else ''
+        query = kwargs.get('q', '') if 'search' in args else ''
 
         for key, value in filters.items():
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                               str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                str(limit), str(offset), str(query), '|'.join(order_bits), '|'.join(sorted(smooshed)))
         return cache_key
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def get_search_results(self, user_query):
+
+        res = dict()
+
+        try:
+
+            queryset = self._meta.queryset
+            model = queryset.model
+
+            res = dict(sqs.models(model).load_all().auto_query(user_query).values_list('pk', 'score'))
+            synonyms = sqs.models(MoleculeSynonyms).load_all().auto_query(user_query)
+            for synonym in synonyms:
+                key = str(synonym.object.molecule.pk)
+                if key in res:
+                    res[key] = max(res[key], synonym.score)
+                else:
+                    res[key] = synonym.score
+
+        except Exception as e:
+            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
+
+        return res
 
 #-----------------------------------------------------------------------------------------------------------------------

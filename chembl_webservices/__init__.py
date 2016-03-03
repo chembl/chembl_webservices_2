@@ -28,6 +28,9 @@ from chembl_webservices.resources.image import ImageResource
 from chembl_webservices.resources.substructure import SubstructureResource
 from chembl_webservices.resources.similarity import SimilarityResource
 from chembl_webservices.resources.chembl_id import ChemblIdLookupResource
+from chembl_webservices.resources.go_slim import GoSlimResource
+from chembl_webservices.resources.indication import DrugIndicationResource
+from chembl_webservices.resources.metabolism import MetabolismResource
 
 from django.conf import settings
 
@@ -60,3 +63,6 @@ api.register(ImageResource())
 api.register(SubstructureResource())
 api.register(SimilarityResource())
 api.register(ChemblIdLookupResource())
+api.register(GoSlimResource())
+api.register(DrugIndicationResource())
+api.register(MetabolismResource())

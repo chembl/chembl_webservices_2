@@ -10,6 +10,9 @@ try:
 except ImportError:
     from chembl_core_model.models import Docs
 
+from chembl_webservices.core.fields import monkeypatch_tastypie_field
+monkeypatch_tastypie_field()
+
 #-----------------------------------------------------------------------------------------------------------------------
 
 class DocsResource(ChemblModelResource):

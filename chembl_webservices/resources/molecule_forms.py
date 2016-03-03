@@ -25,6 +25,9 @@ try:
 except ImportError:
     from chembl_core_model.models import MoleculeDictionary
 
+from chembl_webservices.core.fields import monkeypatch_tastypie_field
+monkeypatch_tastypie_field()
+
 #-----------------------------------------------------------------------------------------------------------------------
 
 class MoleculeFormsResource(ChemblModelResource):
@@ -89,15 +92,6 @@ class MoleculeFormsResource(ChemblModelResource):
         used to narrow the query.
         """
         filters = {}
-
-        if hasattr(bundle.request, 'GET'):
-            # Grab a mutable copy.
-            filters.update(dict(self.flatten_django_lists(bundle.request.GET.lists())))
-
-        if hasattr(bundle.request, 'POST'):
-            # Grab a mutable copy.
-            filters.update(dict(self.flatten_django_lists(bundle.request.POST.lists())))
-
         filters.update(kwargs)
 
         stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in kwargs.items()])
@@ -149,13 +143,11 @@ class MoleculeFormsResource(ChemblModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def get_detail(self, request, **kwargs):
-        start = time.time()
-        basic_bundle = self.build_bundle(request=request)
+    def get_detail_impl(self, request, base_bundle, **kwargs):
         kwargs['detail'] = True
 
         try:
-            obj, in_cache = self.cached_obj_get_list(bundle=basic_bundle, **self.remove_api_resource_names(kwargs))
+            obj, in_cache = self.cached_obj_get_list(bundle=base_bundle, **self.remove_api_resource_names(kwargs))
         except ObjectDoesNotExist:
             return http.HttpNotFound()
 
@@ -167,12 +159,8 @@ class MoleculeFormsResource(ChemblModelResource):
 
         obj[self._meta.collection_name] = bundles
         obj = self.alter_list_data_to_serialize(request, obj)
-        res = self.create_response(request, obj)
-        if WS_DEBUG:
-            end = time.time()
-            res['X-ChEMBL-in-cache'] = in_cache
-            res['X-ChEMBL-retrieval-time'] = end - start
-        return res
+
+        return obj, in_cache
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -250,11 +238,12 @@ class MoleculeFormsResource(ChemblModelResource):
         return [
             url(r"^(?P<resource_name>%s)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_list'), name="api_dispatch_list"),
             url(r"^(?P<resource_name>%s)/schema%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/schema\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/datatables\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_datatables'), name="api_get_datatables"),
             url(r"^(?P<resource_name>%s)/set/(?P<%s_list>\w[\w/;-]*)%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('get_multiple'), name="api_get_multiple"),
+            url(r"^(?P<resource_name>%s)/set/(?P<%s_list>\w[\w/;-]*)\.(?P<format>\w+)$" % (self._meta.resource_name,  self._meta.detail_uri_name), self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_list"),
-            url(r"^(?P<resource_name>%s)/schema\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
-            url(r"^(?P<resource_name>%s)/set/(?P<%s_list>\w[\w/;-]*)\.(?P<format>\w+)$" % (self._meta.resource_name,  self._meta.detail_uri_name), self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 

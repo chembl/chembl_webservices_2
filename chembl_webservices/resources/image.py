@@ -5,6 +5,7 @@ import base64
 import StringIO
 from tastypie.utils import trailing_slash
 from tastypie import http
+from tastypie import fields
 from tastypie.exceptions import NotFound
 from tastypie.exceptions import BadRequest
 from django.conf.urls import url
@@ -19,6 +20,7 @@ from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.dis import SineWarp
 from chembl_webservices.resources.molecule import MoleculeResource
+from chembl_webservices.core.utils import COLOR_NAMES
 try:
     from chembl_compatibility.models import CompoundStructures
 except ImportError:
@@ -74,11 +76,15 @@ except ImportError:
     if not hasattr(cairo, 'HAS_SVG_SURFACE'):
         cairo.HAS_SVG_SURFACE = True
 
+from chembl_webservices.core.fields import monkeypatch_tastypie_field
+monkeypatch_tastypie_field()
+
 SUPPORTED_ENGINES = ['rdkit', 'indigo']
 
 options = DrawingOptions()
 options.useFraction = 1.0
 options.dblBondOffset = .13
+options.bgColor = None
 
 fakeSerializer = ChEMBLApiSerializer('image')
 fakeSerializer.formats = ['png', 'svg', 'json']
@@ -91,10 +97,13 @@ class ImageResource(ChemblModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+    image = fields.ApiField()
+
     class Meta(ChemblResourceMeta):
         resource_name = 'image'
         serializer = fakeSerializer
         default_format = 'image/png'
+        fields = ('image',)
         description = {'api_dispatch_detail' : '''
 Get image of the compound, specified by
 
@@ -121,6 +130,7 @@ You can specify optional parameters:
             url(r"^(?P<resource_name>%s)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/schema\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
             url(r"^(?P<resource_name>%s)/schema%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/datatables\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_datatables'), name="api_get_datatables"),
             url(r"^(?P<resource_name>%s)/(?P<molecule__chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<molecule__chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
@@ -231,6 +241,16 @@ You can specify optional parameters:
         size = int(kwargs.get("dimensions", 500))
         ignoreCoords = kwargs.get("ignoreCoords", False)
 
+        bgColor = kwargs.get("bgColor")
+        if bgColor and isinstance(bgColor, basestring):
+            bgColor = bgColor.lower()
+            if bgColor in COLOR_NAMES:
+                options.bgColor = COLOR_NAMES[bgColor]
+            else:
+                options.bgColor = None
+        else:
+            options.bgColor = None
+
         if size < 1 or size > 500:
             return self.answerBadRequest(request, "Image dimensions supplied are invalid, max value is 500")
 
@@ -242,7 +262,10 @@ You can specify optional parameters:
             if request.is_ajax():
                 img = base64.b64encode(img)
         elif frmt == 'svg':
-            img, mimetype = self.render_svg(mol, size, ignoreCoords)
+            engine = kwargs.get("engine", 'rdkit').lower()
+            if engine not in SUPPORTED_ENGINES:
+                return self.answerBadRequest(request, "Unsupported engine %s" % engine)
+            img, mimetype = self.render_svg(mol, size, engine, ignoreCoords)
         elif frmt == 'json':
             img, mimetype = self.render_json(mol, size, ignoreCoords)
         elif frmt == 'chemcha':
@@ -257,24 +280,42 @@ You can specify optional parameters:
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def render_svg(self, molstring, size, ignoreCoords):
-        mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
-        mol.UpdatePropertyCache(strict=False)
-        if ignoreCoords:
-            AllChem.Compute2DCoords(mol)
+    def render_svg(self, molstring, size, engine, ignoreCoords):
 
-        if cffi and cairocffi.version <= (1,10,0) :
-            imageData = io.BytesIO()
-        else:
-            imageData = StringIO.StringIO()
-        surf = cairo.SVGSurface(imageData, size, size)
-        ctx = cairo.Context(surf)
-        canv = cairoCanvas.Canvas(ctx=ctx, size=(size, size), imageType='svg')
-        leg = mol.GetProp("_Name") if mol.HasProp("_Name") else None
-        draw.MolToImage(mol, size=(size, size), legend=leg, canvas=canv, fitImage=True, options=options)
-        canv.flush()
-        surf.finish()
-        return imageData.getvalue(), 'image/svg+xml'
+        if engine == 'rdkit':
+            mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
+            mol.UpdatePropertyCache(strict=False)
+            if ignoreCoords:
+                AllChem.Compute2DCoords(mol)
+
+            if cffi and cairocffi.version <= (1,10,0) :
+                imageData = io.BytesIO()
+            else:
+                imageData = StringIO.StringIO()
+            surf = cairo.SVGSurface(imageData, size, size)
+            ctx = cairo.Context(surf)
+            canv = cairoCanvas.Canvas(ctx=ctx, size=(size, size), imageType='svg')
+            leg = mol.GetProp("_Name") if mol.HasProp("_Name") else None
+            draw.MolToImage(mol, size=(size, size), legend=leg, canvas=canv, fitImage=True, options=options)
+            canv.flush()
+            surf.finish()
+            return imageData.getvalue(), 'image/svg+xml'
+
+        elif engine == 'indigo':
+            indigoObj = indigo.Indigo()
+            renderer = indigo_renderer.IndigoRenderer(indigoObj)
+            if options and hasattr(options, 'bgColor') and options.bgColor:
+                indigoObj.setOption("render-background-color", "%s, %s, %s" % options.bgColor)
+            indigoObj.setOption("render-output-format", "svg")
+            indigoObj.setOption("render-margins", 10, 10)
+            indigoObj.setOption("render-image-size", size, size)
+            indigoObj.setOption("render-coloring", True)
+            indigoObj.setOption("ignore-stereochemistry-errors", "true")
+            mol = indigoObj.loadMolecule(str(molstring))
+            if ignoreCoords:
+                mol.layout()
+            image = renderer.renderToBuffer(mol)
+            return image.tostring(), "image/svg+xml"
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -310,6 +351,8 @@ You can specify optional parameters:
         elif engine == 'indigo':
             indigoObj = indigo.Indigo()
             renderer = indigo_renderer.IndigoRenderer(indigoObj)
+            if options and hasattr(options, 'bgColor') and options.bgColor:
+                indigoObj.setOption("render-background-color", "%s, %s, %s" % options.bgColor)
             indigoObj.setOption("render-output-format", "png")
             indigoObj.setOption("render-margins", 10, 10)
             indigoObj.setOption("render-image-size", size, size)
@@ -399,6 +442,7 @@ You can specify optional parameters:
 
         molecule__chembl_id = kwargs.get('molecule__chembl_id', '')
         standard_inchi_key = kwargs.get('standard_inchi_key', '')
+        bgColor = kwargs.get('bgColor', '').lower()
         format = kwargs.get('format', 'png')
         engine = kwargs.get('engine', 'rdkit')
         dimensions = kwargs.get('dimensions', 500)
@@ -407,9 +451,10 @@ You can specify optional parameters:
 
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
                                                      str(molecule__chembl_id), str(standard_inchi_key), str(format),
-                                                     str(engine), str(dimensions), str(ignoreCoords), str(is_ajax))
+                                                     str(engine), str(dimensions), str(ignoreCoords), str(is_ajax),
+                                                     bgColor)
         return cache_key
 
 #-----------------------------------------------------------------------------------------------------------------------

@@ -38,6 +38,8 @@ try:
 except AttributeError:
     WS_DEBUG = False
 
+from chembl_webservices.core.fields import monkeypatch_tastypie_field
+monkeypatch_tastypie_field()
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -59,6 +61,7 @@ class SimilarityResource(MoleculeResource):
             url(r"^(?P<resource_name>%s)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="dispatch_list"),
             url(r"^(?P<resource_name>%s)/schema%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('get_schema'), name="api_get_schema"),
             url(r"^(?P<resource_name>%s)/schema\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/datatables\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_datatables'), name="api_get_datatables"),
             url(r"^(?P<resource_name>%s)/(?P<chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)/(?P<similarity>\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)/(?P<similarity>\d[\d]*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])/(?P<similarity>\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
@@ -139,96 +142,66 @@ class SimilarityResource(MoleculeResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def cached_obj_get_list(self, request=None, **kwargs):
-        """
-        A version of ``obj_get_list`` that uses the cache as a means to get
-        commonly-accessed data faster.
-        """
-
+    def cached_obj_get_list(self, bundle, **kwargs):
         kwargs = self.unqote_args(kwargs)
-
-        cache_key = self.generate_cache_key('list', **kwargs)
-        get_failed = False
-        in_cache = True
-
-        try:
-            obj_list = self._meta.cache.get(cache_key)
-        except Exception:
-            obj_list = None
-            get_failed = True
-            self.log.error('Caching get exception', exc_info=True, extra={'request': request,})
-
-        if obj_list is None:
-            in_cache = False
-            obj_list = self.obj_get_list(request=request, **kwargs)
-            if not get_failed:
-                try:
-                    self._meta.cache.set(cache_key, obj_list)
-                except Exception:
-                    self.log.error('Caching set exception', exc_info=True, extra={'request': request,})
-
-        return obj_list, in_cache
+        return self.detail_cache_handler(self.obj_get_list)(bundle, 'list', **kwargs)
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def get_list(self, request, **kwargs):
-        """
-        Returns a serialized list of resources.
+    def get_list_impl(self, request, base_bundle, **kwargs):
+        return self.serialise_list(self.list_cache_handler(self.cached_obj_get_list), for_list=True,
+                            for_search=False)(request, base_bundle, **self.remove_api_resource_names(kwargs))
 
-        Calls ``obj_get_list`` to provide the data, then handles that result
-        set and serializes it.
+#-----------------------------------------------------------------------------------------------------------------------
 
-        Should return a HttpResponse (200 OK).
-        """
+    def list_cache_handler(self, f):
 
-        start = time.time()
+        def handle(bundle, **kwargs):
+            """
+            Returns a serialized list of resources.
 
-        try:
-            if not kwargs.get('similarity'):
-                raise BadRequest("Similarity parameter is required.")
-            original_similarity = kwargs['similarity']
-            kwargs['similarity'] = int(re.search(r'^\d+', kwargs.get('similarity', "0")).group())
-            similarity = kwargs.get('similarity', 0)
-            if similarity < 70 or similarity > 100:
+            Calls ``obj_get_list`` to provide the data, then handles that result
+            set and serializes it.
+
+            Should return a HttpResponse (200 OK).
+            """
+
+            request = bundle.request
+
+            try:
+                if not kwargs.get('similarity'):
+                    raise BadRequest("Similarity parameter is required.")
+                original_similarity = kwargs['similarity']
+                kwargs['similarity'] = int(re.search(r'^\d+', kwargs.get('similarity', "0")).group())
+                similarity = kwargs.get('similarity', 0)
+                if similarity < 70 or similarity > 100:
+                    raise BadRequest("Invalid Similarity Score supplied: %s" % original_similarity)
+            except(ValueError, AttributeError):
                 raise BadRequest("Invalid Similarity Score supplied: %s" % original_similarity)
-        except(ValueError, AttributeError):
-            raise BadRequest("Invalid Similarity Score supplied: %s" % original_similarity)
 
-        base_bundle = self.build_bundle(request=request)
-        objects, in_cache = self.cached_obj_get_list(bundle=base_bundle, **self.remove_api_resource_names(kwargs))
+            objects, in_cache = f(bundle=bundle, **self.remove_api_resource_names(kwargs)) #self.cached_obj_get_list(bundle=base_bundle, **self.remove_api_resource_names(kwargs))
 
-        try:
-            limit = int(re.search(r'^\d+', str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
-        except(ValueError, AttributeError):
-            limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
+            try:
+                limit = int(re.search(r'^\d+', str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
+            except(ValueError, AttributeError):
+                limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
 
-        try:
-            offset = int(re.search(r'^\d+', str(kwargs.pop('offset', "0"))).group())
-        except(ValueError, AttributeError):
-            offset = 0
+            try:
+                offset = int(re.search(r'^\d+', str(kwargs.pop('offset', "0"))).group())
+            except(ValueError, AttributeError):
+                offset = 0
 
-        paginator_info = {'limit': limit, 'offset': offset}
+            paginator_info = {'limit': limit, 'offset': offset}
 
-        paginator = self._meta.paginator_class(paginator_info, objects, resource_uri=self.get_resource_uri(),
-            limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                method=request.method, params=self.remove_api_resource_names(kwargs), format=request.format)
-        to_be_serialized = paginator.page()
+            paginator = self._meta.paginator_class(paginator_info, objects, resource_uri=self.get_resource_uri(),
+                limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
+                    method=request.method, params=self.remove_api_resource_names(kwargs), format=request.format)
+            to_be_serialized = paginator.page()
 
-        # Dehydrate the bundles in preparation for serialization.
-        bundles = []
+            return to_be_serialized, in_cache
 
-        for obj in to_be_serialized[self._meta.collection_name]:
-            bundle = self.build_bundle(obj=obj, request=request)
-            bundles.append(self.full_dehydrate(bundle, for_list=True))
+        return handle
 
-        to_be_serialized[self._meta.collection_name] = bundles
-        to_be_serialized = self.alter_list_data_to_serialize(request, to_be_serialized)
-        res = self.create_response(request, to_be_serialized)
-        if WS_DEBUG:
-            end = time.time()
-            res['X-ChEMBL-in-cache'] = in_cache
-            res['X-ChEMBL-retrieval-time'] = end - start
-        return res
 
 #-----------------------------------------------------------------------------------------------------------------------
 
