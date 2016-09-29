@@ -44,7 +44,6 @@ except ImportError:
 try:
     from rdkit import Chem
     from rdkit.Chem import AllChem
-    from rdkit.Chem import Draw
 except ImportError:
     Chem = None
     Draw = None
@@ -148,6 +147,13 @@ You can specify optional parameters:
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+    def error_response(self, request, errors, response_class=None):
+        if request.format not in ChEMBLApiSerializer.formats:
+            request.format = 'json'
+        return super(ImageResource, self).error_response(request, errors, response_class)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
     def wrap_view(self, view):
         @csrf_exempt
         def wrapper(request, *args, **kwargs):
@@ -238,7 +244,10 @@ You can specify optional parameters:
 
     def render_image(self, mol, request, **kwargs):
         frmt = kwargs.get('format', 'png')
-        size = int(kwargs.get("dimensions", 500))
+        try:
+            size = int(kwargs.get("dimensions", 500))
+        except ValueError:
+            return self.answerBadRequest(request, "Image dimensions supplied are invalid")
         ignoreCoords = kwargs.get("ignoreCoords", False)
 
         bgColor = kwargs.get("bgColor")
@@ -431,7 +440,7 @@ You can specify optional parameters:
             options={"useFraction": 1.0,
                      "dblBondOffset": .13,
                      'atomLabelFontSize': fontSize,}
-        image = Draw.MolToImage(mol, size=(size, size), fitImage=True, options=options)
+        image = draw.MolToImage(mol, size=(size, size), fitImage=True, options=options)
         image = SineWarp().render(image)
         image.save(buf, "PNG")
         return buf.getvalue(), "image/png"

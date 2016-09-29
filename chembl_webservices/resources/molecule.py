@@ -233,6 +233,10 @@ _SMILES_.
             'usan_stem_definition',
             'usan_substem',
             'usan_year',
+            'withdrawn_flag',
+            'withdrawn_year',
+            'withdrawn_country',
+            'withdrawn_reason',
         )
 
         filtering = {
@@ -267,6 +271,10 @@ _SMILES_.
             'usan_stem_definition' : CHAR_FILTERS,
             'usan_substem' : CHAR_FILTERS,
             'usan_year' : NUMBER_FILTERS,
+            'withdrawn_flag': FLAG_FILTERS,
+            'withdrawn_year': NUMBER_FILTERS,
+            'withdrawn_country': CHAR_FILTERS,
+            'withdrawn_reason': CHAR_FILTERS,
         }
         ordering  = [
             'availability_type',
@@ -299,6 +307,10 @@ _SMILES_.
             'usan_stem_definition',
             'usan_substem',
             'usan_year',
+            'withdrawn_flag',
+            'withdrawn_year',
+            'withdrawn_country',
+            'withdrawn_reason',
         ]
 
 #-----------------------------------------------------------------------------------------------------------------------

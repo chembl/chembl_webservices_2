@@ -41,6 +41,7 @@ class CellLineResource(ChemblModelResource):
             'cellosaurus_id',
             'clo_id',
             'efo_id',
+            'cl_lincs_id',
         )
 
         filtering = {
@@ -54,6 +55,7 @@ class CellLineResource(ChemblModelResource):
             'cellosaurus_id' : CHAR_FILTERS,
             'clo_id' : CHAR_FILTERS,
             'efo_id' : CHAR_FILTERS,
+            'cl_lincs_id': CHAR_FILTERS,
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
 

@@ -143,7 +143,7 @@ class SimilarityResource(MoleculeResource):
 #-----------------------------------------------------------------------------------------------------------------------
 
     def cached_obj_get_list(self, bundle, **kwargs):
-        kwargs = self.unqote_args(kwargs)
+        kwargs = self.unquote_args(kwargs)
         return self.detail_cache_handler(self.obj_get_list)(bundle, 'list', **kwargs)
 
 #-----------------------------------------------------------------------------------------------------------------------

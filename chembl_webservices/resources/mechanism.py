@@ -11,8 +11,41 @@ try:
 except ImportError:
     from chembl_core_model.models import DrugMechanism
 
+try:
+    from chembl_compatibility.models import MechanismRefs
+except ImportError:
+    from chembl_core_model.models import MechanismRefs
+
+
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+class MechanismRefsResource(ChemblModelResource):
+
+    class Meta(ChemblResourceMeta):
+        queryset = MechanismRefs.objects.all()
+        excludes = []
+        resource_name = 'mechanism_ref'
+        collection_name = 'mechanism_refs'
+        detail_uri_name = 'mecref_id'
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        prefetch_related = []
+
+        fields = (
+            'ref_type',
+            'ref_id',
+            'ref_url',
+        )
+
+        filtering = {
+            'ref_type' : CHAR_FILTERS,
+            'ref_id' : CHAR_FILTERS,
+            'ref_url' : CHAR_FILTERS,
+        }
+
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -23,6 +56,8 @@ class MechanismResource(ChemblModelResource):
     target_chembl_id = fields.CharField('target__chembl__chembl_id', null=True, blank=True)
     site_id = fields.IntegerField('site__site_id', null=True, blank=True)
     action_type = fields.CharField('action_type__action_type', null=True, blank=True)
+    mechanism_refs = fields.ToManyField('chembl_webservices.resources.mechanism.MechanismRefsResource',
+        'mechanismrefs_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = DrugMechanism.objects.all()

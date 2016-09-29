@@ -18,7 +18,8 @@ monkeypatch_tastypie_field()
 
 class ActivityResource(ChemblModelResource):
 
-    bao_format = fields.CharField('assay__bao_format', null=True, blank=True)
+    bao_format = fields.CharField('assay__bao_format__bao_id', null=True, blank=True)
+    bao_endpoint = fields.CharField('bao_endpoint__bao_id', null=True, blank=True)
     data_validity_comment = fields.CharField('data_validity_comment__description', null=True, blank=True)
     document_chembl_id = fields.CharField('doc__chembl__chembl_id', null=True, blank=True)
     molecule_chembl_id = fields.CharField('molecule__chembl__chembl_id', null=True, blank=True)

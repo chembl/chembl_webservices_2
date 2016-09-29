@@ -33,7 +33,7 @@ monkeypatch_tastypie_field()
 class MoleculeFormsResource(ChemblModelResource):
 
     molecule_chembl_id = fields.CharField('molecule__chembl_id')
-    parent = fields.CharField('parent_molecule__chembl_id')
+    parent_chembl_id = fields.CharField('parent_molecule__chembl_id')
 
     class Meta(ChemblResourceMeta):
         queryset = MoleculeHierarchy.objects.all()
@@ -76,10 +76,10 @@ class MoleculeFormsResource(ChemblModelResource):
         Should accommodate for receiving a single bundle of data.
         """
         datas = bundle.data
-        if datas['molecule_chembl_id'] == datas['parent']:
-            datas['parent'] = "True"
+        if datas['molecule_chembl_id'] == datas['parent_chembl_id']:
+            datas['is_parent'] = "True"
         else:
-            datas['parent'] = "False"
+            datas['is_parent'] = "False"
         return bundle
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -113,13 +113,16 @@ class MoleculeFormsResource(ChemblModelResource):
             if hasattr(mol, 'downgraded') and mol.downgraded:
                 raise ImmediateHttpResponse(response=http.HttpNotFound())
 
-            hierarchy = mol.moleculehierarchy
+            try:
+                hierarchy = mol.moleculehierarchy
+                has_parent, parent_chemblID = (hierarchy.parent_molecule, hierarchy.parent_molecule_id)
+            except ObjectDoesNotExist:
+                has_parent = False
 
-            has_parent, parent_chemblID = (hierarchy.parent_molecule, hierarchy.parent_molecule_id)
             if has_parent:
                 parent = has_parent
             else:
-                parent, parent_chemblID = (mol, mol.chembl_id)
+                parent, parent_chemblID = (mol, mol.pk)
             forms.add(parent_chemblID)
             forms.update(MoleculeDictionary.objects.filter(moleculehierarchy__parent_molecule=parent)
                                                                     .values_list("pk", flat=True))
@@ -214,6 +217,7 @@ class MoleculeFormsResource(ChemblModelResource):
         The default simply applies the ``applicable_filters`` as ``**kwargs``,
         but should make it possible to do more advanced things.
         """
+        print 'apply filters'
         pk = filters.get(self._meta.detail_uri_name)
         if not pk:
             applicable_filters, distinct = self.build_filters(filters=filters)

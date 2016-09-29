@@ -28,6 +28,11 @@ try:
 except ImportError:
     from chembl_core_model.models import Assays
 
+try:
+    from chembl_compatibility.models import Docs
+except ImportError:
+    from chembl_core_model.models import Docs
+
 #-----------------------------------------------------------------------------------------------------------------------
 
 class MoleculeDictionaryIndex(SearchIndex):
@@ -57,8 +62,14 @@ class AssaysIndex(SearchIndex):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
+class DocsIndex(SearchIndex):
+    text = CharField(document=True, use_template=True)
+
+#-----------------------------------------------------------------------------------------------------------------------
+
 site.register(MoleculeDictionary, MoleculeDictionaryIndex)
 site.register(MoleculeSynonyms, MoleculeSynonymsIndex)
 site.register(TargetDictionary, TargetDictionaryIndex)
 site.register(ComponentSynonyms, ComponentSynonymsIndex)
 site.register(Assays, AssaysIndex)
+site.register(Docs, DocsIndex)

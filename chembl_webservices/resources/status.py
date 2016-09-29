@@ -7,6 +7,11 @@ from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 
+try:
+    from chembl_compatibility.models import Version
+except ImportError:
+    from chembl_core_model.models import Version
+
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
@@ -42,7 +47,7 @@ class StatusResource(ChemblModelResource):
 #-----------------------------------------------------------------------------------------------------------------------
 
     def get_detail(self, request, **kwargs):
-        return self.create_response(request, {'status': 'UP', 'version': __version__})
+        return self.create_response(request, {'status': 'UP', 'api_version': __version__, 'chembl_db_version': Version.objects.all()[0].name})
 
 #-----------------------------------------------------------------------------------------------------------------------
 

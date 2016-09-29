@@ -11,6 +11,7 @@ import itertools
 from urllib import unquote
 from tastypie import http
 from tastypie.exceptions import BadRequest
+from tastypie.exceptions import UnsupportedFormat
 from tastypie.exceptions import Unauthorized
 from tastypie.exceptions import ImmediateHttpResponse
 from tastypie.resources import ModelResource
@@ -109,7 +110,11 @@ class ChemblModelResource(ModelResource):
         data = {'exception': error}
         if request:
             desired_format = self.determine_format(request)
-            serialized = self.serialize(request, data, desired_format)
+            try:
+                serialized = self.serialize(request, data, desired_format)
+            except UnsupportedFormat:
+                desired_format = 'application/xml'
+                serialized = self.serialize(request, data, desired_format)
         else:
             desired_format = 'application/xml'
             serialized = self._meta.serializer.serialize(data, desired_format, None)
@@ -301,16 +306,18 @@ class ChemblModelResource(ModelResource):
 
 #-----------------------------------------------------------------------------------------------------------------------
 
-    def unqote_args(self, args):
+    def unquote_args(self, args):
         if isinstance(args, basestring):
+            if '%10' in args:
+                return args
             return unquote(args)
         elif hasattr(args, '__iter__'):
             if type(args) == dict:
                 for key in args:
-                    args[key] = self.unqote_args(args[key])
+                    args[key] = self.unquote_args(args[key])
             elif type(args) == list:
                 for idx, arg in enumerate(args):
-                    args[idx] = self.unqote_args(arg)
+                    args[idx] = self.unquote_args(arg)
         return args
 
 #-----------------------------------------------------------------------------------------------------------------------
@@ -326,6 +333,10 @@ class ChemblModelResource(ModelResource):
         elif 'MDL-1250' in msg:
             raise BadRequest("SIMILAR search query can not be a NOSTRUCT or unconnected H or LP atom, got: %s" %
                              kwargs.get('smiles'))
+        elif 'ORA-127' in msg:
+            m = re.search('ORA\-127[23]\d: (?P<desc>.*)',msg)
+            if m:
+                raise BadRequest("%s" % m.groupdict().get('desc','Invalid regular expression'))
         elif 'Full-text search' in msg:
             raise BadRequest("Full text search is not implemented yet.")
         else:
@@ -341,7 +352,7 @@ class ChemblModelResource(ModelResource):
             A version of ``obj_get_list`` that uses the cache as a means to get
             commonly-accessed data faster.
             """
-            kwargs = self.unqote_args(kwargs)
+            kwargs = self.unquote_args(kwargs)
 
             request = bundle.request
             get_failed = False

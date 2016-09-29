@@ -17,10 +17,10 @@ if sys.version_info < (2, 7, 3) or sys.version_info >= (3, 0, 0):
 
 setup(
     name='chembl_webservices',
-    version='2.3.7',
+    version='2.4.9',
     author='Michal Nowotka',
     author_email='mnowotka@ebi.ac.uk',
-    description='Python package providing chembl webservices API.',
+    description='Python package providing chembl web services API.',
     url='https://www.ebi.ac.uk/chembldb/index.php/ws',
     license='Apache Software License',
     packages=[
@@ -36,7 +36,7 @@ setup(
         'simplejson==2.3.2',
         'Pillow>=2.1.0',
         'django-tastypie==0.10',
-        'chembl_core_model>=0.7.0',
+        'chembl_core_model>=0.8.0',
         'cairocffi>=0.5.1',
         'numpy>=1.7.1',
         'mimeparse',

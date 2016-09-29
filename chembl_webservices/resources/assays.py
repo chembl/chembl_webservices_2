@@ -23,6 +23,7 @@ class AssayResource(ChemblModelResource):
     assay_chembl_id = fields.CharField('chembl__chembl_id', null=True, blank=True)
     document_chembl_id = fields.CharField('doc__chembl__chembl_id', null=True, blank=True)
     target_chembl_id = fields.CharField('target__chembl__chembl_id', null=True, blank=True)
+    tissue_chembl_id = fields.CharField('tissue__chembl__chembl_id', null=True, blank=True)
     assay_type = fields.CharField('assay_type__assay_type', null=True, blank=True)
     assay_type_description = fields.CharField('assay_type__assay_desc', null=True, blank=True)
     relationship_type = fields.CharField('relationship_type__relationship_type', null=True, blank=True)
@@ -32,6 +33,7 @@ class AssayResource(ChemblModelResource):
     src_id = fields.IntegerField('src__src_id', null=True, blank=True)
     cell_chembl_id = fields.CharField('cell__chembl__chembl_id', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
+    bao_format = fields.CharField('bao_format__bao_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Assays.objects.all()
@@ -48,6 +50,8 @@ class AssayResource(ChemblModelResource):
                             'relationship_type',
                             'src',
                             'target',
+                            'tissue', 'tissue__chembl',
+                            'bao_format'
                             ]
 
         fields = (

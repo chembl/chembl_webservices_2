@@ -22,6 +22,8 @@ from chembl_webservices.resources.chembl_id import ChemblIdLookupResource
 from chembl_webservices.resources.go_slim import GoSlimResource
 from chembl_webservices.resources.indication import DrugIndicationResource
 from chembl_webservices.resources.metabolism import MetabolismResource
+from chembl_webservices.resources.tissue import TissueResource
+from chembl_webservices.resources.target_relations import TargetRelationsResource
 
 __all__ = [
     'ActivityResource',
@@ -46,4 +48,6 @@ __all__ = [
     'GoSlimResource',
     'DrugIndicationResource',
     'MetabolismResource',
+    'TissueResource',
+    'TargetRelationsResource',
 ]

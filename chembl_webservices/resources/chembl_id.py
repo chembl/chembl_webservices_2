@@ -128,6 +128,11 @@ class ChemblIdLookupResource(ChemblModelResource):
             res.extend([(a, assays[str(b)]) for (a,b) in
                                                 assay_qs.filter(pk__in=assays.keys()).values_list('chembl_id', 'pk')])
 
+            doc_qs = document._meta.queryset
+            docs = document.get_search_results(user_query)
+            res.extend([(a, docs[str(b)]) for (a,b) in
+                                                doc_qs.filter(pk__in=docs.keys()).values_list('chembl_id', 'pk')])
+
         except Exception as e:
             self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
 

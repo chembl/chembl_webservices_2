@@ -31,6 +31,8 @@ from chembl_webservices.resources.chembl_id import ChemblIdLookupResource
 from chembl_webservices.resources.go_slim import GoSlimResource
 from chembl_webservices.resources.indication import DrugIndicationResource
 from chembl_webservices.resources.metabolism import MetabolismResource
+from chembl_webservices.resources.tissue import TissueResource
+from chembl_webservices.resources.target_relations import TargetRelationsResource
 
 from django.conf import settings
 
@@ -66,3 +68,5 @@ api.register(ChemblIdLookupResource())
 api.register(GoSlimResource())
 api.register(DrugIndicationResource())
 api.register(MetabolismResource())
+api.register(TissueResource())
+api.register(TargetRelationsResource())

@@ -61,6 +61,7 @@ class TargetComponentsResource(ChemblModelResource):
     accession = fields.CharField('component__accession', null=True, blank=True)
     component_id = fields.IntegerField('component_id', null=True, blank=True)
     component_type = fields.CharField('component__component_type', null=True, blank=True)
+    component_description = fields.CharField('component__description', null=True, blank=True)
     target_component_synonyms = fields.ToManyField('chembl_webservices.resources.target.TargetComponentSynonyms',
         'component__componentsynonyms_set', full=True, null=True, blank=True)
 
@@ -69,11 +70,15 @@ class TargetComponentsResource(ChemblModelResource):
             'accession',
             'component_id',
             'component_type',
+            'relationship',
+            'component_description',
         ]
         filtering = {
             'accession': CHAR_FILTERS,
             'component_id': NUMBER_FILTERS,
             'component_type': CHAR_FILTERS,
+            'relationship': CHAR_FILTERS,
+            'component_description': CHAR_FILTERS,
         }
         queryset = TargetComponents.objects.all()
         resource_name = 'target_component'
