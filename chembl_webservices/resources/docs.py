@@ -48,7 +48,7 @@ class DocsResource(ChemblModelResource):
         )
 
         filtering = {
-            'abstract' : FLAG_FILTERS,
+            'abstract' : CHAR_FILTERS,
             'authors' : CHAR_FILTERS,
             'doc_type' : CHAR_FILTERS,
             'document_chembl_id' : NUMBER_FILTERS,

@@ -39,7 +39,7 @@ class MoleculeFormsResource(ChemblModelResource):
         queryset = MoleculeHierarchy.objects.all()
         filtering = {
             'molecule_chembl_id' : CHAR_FILTERS,
-            'parent' : CHAR_FILTERS,
+            'parent_chembl_id' : CHAR_FILTERS,
         }
         prefetch_related = ['molecule', 'parent_molecule']
         resource_name = 'molecule_form'

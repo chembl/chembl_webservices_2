@@ -9,7 +9,9 @@ from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.utils import CHAR_FILTERS, FLAG_FILTERS, NUMBER_FILTERS
-from django.core.urlresolvers import NoReverseMatch
+from django.db.models.constants import LOOKUP_SEP
+from django.db.models.sql.constants import QUERY_TERMS
+from tastypie.utils import dict_strip_unicode_keys
 
 try:
     from chembl_compatibility.models import TargetDictionary
@@ -79,6 +81,7 @@ class TargetComponentsResource(ChemblModelResource):
             'component_type': CHAR_FILTERS,
             'relationship': CHAR_FILTERS,
             'component_description': CHAR_FILTERS,
+            'target_component_synonyms': ALL_WITH_RELATIONS,
         }
         queryset = TargetComponents.objects.all()
         resource_name = 'target_component'
@@ -174,5 +177,50 @@ class TargetResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/set/(?P<%s_list>\w[\w/;-]*)\.(?P<format>\w+)$" % (self._meta.resource_name,  self._meta.detail_uri_name), self.wrap_view('get_multiple'), name="api_get_multiple"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+    def build_filters(self, filters=None):
+
+        distinct = False
+        if filters is None:
+            filters = {}
+
+        qs_filters = {}
+
+        if getattr(self._meta, 'queryset', None) is not None:
+            # Get the possible query terms from the current QuerySet.
+            query_terms = self._meta.queryset.query.query_terms
+        else:
+            query_terms = QUERY_TERMS
+
+        for filter_expr, value in filters.items():
+            filter_bits = filter_expr.split(LOOKUP_SEP)
+            field_name = filter_bits.pop(0)
+            filter_type = 'exact'
+
+            if field_name == 'target_synonym':
+                field_name = 'target_components'
+                filter_bits = ['target_component_synonyms', 'component_synonym'] + filter_bits
+
+            if not field_name in self.fields:
+                if filter_expr == 'pk' or filter_expr == self._meta.detail_uri_name:
+                    qs_filters[filter_expr] = value
+                continue
+
+            if len(filter_bits) and filter_bits[-1] in query_terms:
+                filter_type = filter_bits.pop()
+
+            lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
+            if any([x.endswith('_set') for x in lookup_bits]):
+                distinct = True
+                lookup_bits = map(lambda x: x[0:-4] if x.endswith('_set') else x, lookup_bits)
+            value = self.filter_value_to_python(value, field_name, filters, filter_expr, filter_type)
+
+            db_field_name = LOOKUP_SEP.join(lookup_bits)
+            qs_filter = "%s%s%s" % (db_field_name, LOOKUP_SEP, filter_type)
+            qs_filters[qs_filter] = value
+
+        return dict_strip_unicode_keys(qs_filters), distinct
 
 #-----------------------------------------------------------------------------------------------------------------------

@@ -33,6 +33,9 @@ from chembl_webservices.resources.indication import DrugIndicationResource
 from chembl_webservices.resources.metabolism import MetabolismResource
 from chembl_webservices.resources.tissue import TissueResource
 from chembl_webservices.resources.target_relations import TargetRelationsResource
+from chembl_webservices.resources.document_similarity import DocumentSimilarityResource
+from chembl_webservices.resources.structural_alerts import CompoundStructuralAlertsResource
+from chembl_webservices.resources.document_terms import DocumentTermsResource
 
 from django.conf import settings
 
@@ -70,3 +73,6 @@ api.register(DrugIndicationResource())
 api.register(MetabolismResource())
 api.register(TissueResource())
 api.register(TargetRelationsResource())
+api.register(DocumentSimilarityResource())
+api.register(CompoundStructuralAlertsResource())
+api.register(DocumentTermsResource())

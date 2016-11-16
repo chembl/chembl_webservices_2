@@ -1,9 +1,57 @@
 __author__ = 'mnowotka'
 
+import StringIO
+from chembl_beaker.beaker.draw import cairoCanvas
+from chembl_beaker.beaker import draw
+
+try:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+except ImportError:
+    Chem = None
+    Draw = None
+    AllChem = None
+
+try:
+    from chembl_beaker.beaker.draw import DrawingOptions
+except ImportError:
+    DrawingOptions = None
+
+try:
+    import indigo
+    import indigo_renderer
+    indigoObj = indigo.Indigo()
+except ImportError:
+    indigo = None
+    indigo_renderer = None
+
+try:
+    import cairo
+    cffi = False
+except ImportError:
+    import cairocffi
+    cairocffi.install_as_pycairo()
+    cffi = True
+    import io
+    import cairo
+    if not hasattr(cairo, 'HAS_PDF_SURFACE'):
+        cairo.HAS_PDF_SURFACE = False
+    if not hasattr(cairo, 'HAS_SVG_SURFACE'):
+        cairo.HAS_SVG_SURFACE = True
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+options = DrawingOptions()
+options.useFraction = 1.0
+options.dblBondOffset = .13
+options.bgColor = None
+
 NUMBER_FILTERS = ['exact', 'range', 'gt', 'gte', 'lt', 'lte', 'in', 'isnull']
 FLAG_FILTERS = ['exact', 'isnull']
 CHAR_FILTERS = ['exact', 'iexact', 'contains', 'icontains', 'istartswith', 'startswith', 'endswith', 'iendswith', 'search', 'regex', 'iregex', 'isnull', 'in']
 DATE_FILTERS = ['exact', 'year', 'month', 'day', 'week_day', 'isnull']
+
+#-----------------------------------------------------------------------------------------------------------------------
 
 COLOR_NAMES = {
     'aliceblue': (0.941176, 0.972549, 1),
@@ -172,3 +220,76 @@ COLOR_NAMES = {
     'yellowgreen': (0.603922, 0.803922, 0.196078),
 }
 
+#-----------------------------------------------------------------------------------------------------------------------
+
+def render_indigo(mol, options, frmt, margin, size, colors, ignoreCoords):
+
+    renderer = indigo_renderer.IndigoRenderer(indigoObj)
+    if options and hasattr(options, 'bgColor') and options.bgColor:
+        indigoObj.setOption("render-background-color", "%s, %s, %s" % options.bgColor)
+    indigoObj.setOption("render-output-format", frmt)
+    indigoObj.setOption("render-margins", margin, margin)
+    indigoObj.setOption("render-image-size", size, size)
+    indigoObj.setOption("render-coloring", colors)
+    indigoObj.setOption("ignore-stereochemistry-errors", "true")
+    if ignoreCoords:
+        mol.layout()
+    image = renderer.renderToBuffer(mol)
+    return image.tostring()
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+def render_rdkit(mol, highlight, options, frmt, size, ignoreCoords):
+
+    leg = mol.GetProp("_Name") if mol.HasProp("_Name") else None
+    matching = []
+    if highlight:
+        matching = highlight
+    if ignoreCoords:
+        AllChem.Compute2DCoords(mol)
+    if frmt == 'png':
+        buf = StringIO.StringIO()
+        image = draw.MolToImage(mol, size=(size, size), legend=leg, fitImage=True, options=options, highlightAtoms=matching)
+        image.save(buf, "PNG")
+        return buf.getvalue()
+
+    elif frmt == 'svg':
+        if cffi and cairocffi.version <= (1,10,0) :
+            imageData = io.BytesIO()
+        else:
+            imageData = StringIO.StringIO()
+        surf = cairo.SVGSurface(imageData, size, size)
+        ctx = cairo.Context(surf)
+        canv = cairoCanvas.Canvas(ctx=ctx, size=(size, size), imageType='svg')
+        draw.MolToImage(mol, size=(size, size), legend=leg, canvas=canv, fitImage=True, options=options, highlightAtoms=matching)
+        canv.flush()
+        surf.finish()
+        return imageData.getvalue()
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+def highlight_substructure_rdkit(molstring, smarts):
+    mol = Chem.MolFromMolBlock(str(molstring), sanitize=True)
+    mol.UpdatePropertyCache(strict=False)
+    patt = Chem.MolFromSmarts(str(smarts))
+    Chem.GetSSSR(patt)
+    Chem.GetSSSR(mol)
+    match = mol.HasSubstructMatch(patt)
+    if not match:
+        return
+    matching = mol.GetSubstructMatch(patt)
+    return mol, matching
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+def highlight_substructure_indigo(molstring, smarts):
+
+
+    mol = indigoObj.loadMolecule(str(molstring))
+    patt = indigoObj.loadSmarts(str(smarts))
+    match = indigoObj.substructureMatcher(mol).match(patt)
+    if not match:
+        return
+    return match.highlightedTarget()
+
+#-----------------------------------------------------------------------------------------------------------------------

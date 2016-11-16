@@ -12,7 +12,6 @@ from django.conf.urls import url
 from django.http import HttpResponse
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from chembl_beaker.beaker.core_apps.jsonImages.jsonCanvas import MolToJSON
-from chembl_beaker.beaker.draw import cairoCanvas
 from chembl_beaker.beaker import draw
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.resource import WS_DEBUG
@@ -21,6 +20,11 @@ from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.dis import SineWarp
 from chembl_webservices.resources.molecule import MoleculeResource
 from chembl_webservices.core.utils import COLOR_NAMES
+from chembl_webservices.core.utils import options
+from chembl_webservices.core.utils import indigoObj
+from chembl_webservices.core.utils import render_indigo
+from chembl_webservices.core.utils import render_rdkit
+
 try:
     from chembl_compatibility.models import CompoundStructures
 except ImportError:
@@ -54,36 +58,10 @@ try:
 except ImportError:
     DrawingOptions = None
 
-try:
-    import indigo
-    import indigo_renderer
-except ImportError:
-    indigo = None
-    indigo_renderer = None
-
-try:
-    import cairo
-    cffi = False
-except ImportError:
-    import cairocffi
-    cairocffi.install_as_pycairo()
-    cffi = True
-    import io
-    import cairo
-    if not hasattr(cairo, 'HAS_PDF_SURFACE'):
-        cairo.HAS_PDF_SURFACE = False
-    if not hasattr(cairo, 'HAS_SVG_SURFACE'):
-        cairo.HAS_SVG_SURFACE = True
-
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
 SUPPORTED_ENGINES = ['rdkit', 'indigo']
-
-options = DrawingOptions()
-options.useFraction = 1.0
-options.dblBondOffset = .13
-options.bgColor = None
 
 fakeSerializer = ChEMBLApiSerializer('image')
 fakeSerializer.formats = ['png', 'svg', 'json']
@@ -290,41 +268,15 @@ You can specify optional parameters:
 #-----------------------------------------------------------------------------------------------------------------------
 
     def render_svg(self, molstring, size, engine, ignoreCoords):
-
+        ret = None
         if engine == 'rdkit':
             mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
             mol.UpdatePropertyCache(strict=False)
-            if ignoreCoords:
-                AllChem.Compute2DCoords(mol)
-
-            if cffi and cairocffi.version <= (1,10,0) :
-                imageData = io.BytesIO()
-            else:
-                imageData = StringIO.StringIO()
-            surf = cairo.SVGSurface(imageData, size, size)
-            ctx = cairo.Context(surf)
-            canv = cairoCanvas.Canvas(ctx=ctx, size=(size, size), imageType='svg')
-            leg = mol.GetProp("_Name") if mol.HasProp("_Name") else None
-            draw.MolToImage(mol, size=(size, size), legend=leg, canvas=canv, fitImage=True, options=options)
-            canv.flush()
-            surf.finish()
-            return imageData.getvalue(), 'image/svg+xml'
-
+            ret = render_rdkit(mol, None, options, 'svg', size, ignoreCoords)
         elif engine == 'indigo':
-            indigoObj = indigo.Indigo()
-            renderer = indigo_renderer.IndigoRenderer(indigoObj)
-            if options and hasattr(options, 'bgColor') and options.bgColor:
-                indigoObj.setOption("render-background-color", "%s, %s, %s" % options.bgColor)
-            indigoObj.setOption("render-output-format", "svg")
-            indigoObj.setOption("render-margins", 10, 10)
-            indigoObj.setOption("render-image-size", size, size)
-            indigoObj.setOption("render-coloring", True)
-            indigoObj.setOption("ignore-stereochemistry-errors", "true")
             mol = indigoObj.loadMolecule(str(molstring))
-            if ignoreCoords:
-                mol.layout()
-            image = renderer.renderToBuffer(mol)
-            return image.tostring(), "image/svg+xml"
+            ret = render_indigo(mol, options, 'svg', 10, size, True, ignoreCoords)
+        return ret, "image/svg+xml"
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -340,38 +292,19 @@ You can specify optional parameters:
 #-----------------------------------------------------------------------------------------------------------------------
 
     def render_png(self, molstring, size, engine, ignoreCoords):
-        buf = StringIO.StringIO()
-
+        ret = None
         if engine == 'rdkit':
             fontSize = int(size / 33)
             if size < 200:
                 fontSize = 1
+            options.atomLabelFontSize = fontSize
             mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
             mol.UpdatePropertyCache(strict=False)
-            if ignoreCoords:
-                AllChem.Compute2DCoords(mol)
-
-            options.atomLabelFontSize = fontSize
-
-            image = draw.MolToImage(mol, size=(size, size), fitImage=True, options=options)
-            image.save(buf, "PNG")
-            return buf.getvalue(), "image/png"
-
+            ret = render_rdkit(mol, None, options, 'png', size, ignoreCoords)
         elif engine == 'indigo':
-            indigoObj = indigo.Indigo()
-            renderer = indigo_renderer.IndigoRenderer(indigoObj)
-            if options and hasattr(options, 'bgColor') and options.bgColor:
-                indigoObj.setOption("render-background-color", "%s, %s, %s" % options.bgColor)
-            indigoObj.setOption("render-output-format", "png")
-            indigoObj.setOption("render-margins", 10, 10)
-            indigoObj.setOption("render-image-size", size, size)
-            indigoObj.setOption("render-coloring", True)
-            indigoObj.setOption("ignore-stereochemistry-errors", "true")
             mol = indigoObj.loadMolecule(str(molstring))
-            if ignoreCoords:
-                mol.layout()
-            image = renderer.renderToBuffer(mol)
-            return image.tostring(), "image/png"
+            ret = render_indigo(mol, options, 'png', 10, size, True, ignoreCoords)
+        return ret, "image/png"
 
 #-----------------------------------------------------------------------------------------------------------------------
 
