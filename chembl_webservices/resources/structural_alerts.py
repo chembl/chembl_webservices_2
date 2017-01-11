@@ -4,13 +4,11 @@ import time
 import base64
 from tastypie import http
 from django.http import HttpResponse
-from django.core.exceptions import ObjectDoesNotExist
 from tastypie import fields
-from tastypie.resources import ALL
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
-from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
+from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
 from chembl_webservices.resources.image import SUPPORTED_ENGINES
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
 from chembl_webservices.core.utils import COLOR_NAMES
@@ -22,7 +20,6 @@ from chembl_webservices.core.utils import highlight_substructure_indigo
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
 from tastypie.exceptions import ImmediateHttpResponse
-from collections import defaultdict
 
 try:
     from chembl_compatibility.models import CompoundStructuralAlerts
@@ -47,10 +44,8 @@ try:
 except AttributeError:
     WS_DEBUG = False
 
-dd = defaultdict(lambda:(0,0,0))
-options.elemDict=dd
+# ----------------------------------------------------------------------------------------------------------------------
 
-#-----------------------------------------------------------------------------------------------------------------------
 
 class StructuralAlertSetsResource(ChemblModelResource):
 
@@ -65,24 +60,26 @@ class StructuralAlertSetsResource(ChemblModelResource):
             'priority',
         )
         filtering = {
-            'set_name' : CHAR_FILTERS,
-            'priority' : NUMBER_FILTERS,
+            'set_name': CHAR_FILTERS,
+            'priority': NUMBER_FILTERS,
         }
 
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or 'canonical_smiles' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or
+                                                                'canonical_smiles' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class StructuralAlertsResource(ChemblModelResource):
 
     alert_set = fields.ForeignKey('chembl_webservices.resources.structural_alerts.StructuralAlertSetsResource',
-        'alertset', full=True, null=True, blank=True)
+                                  'alertset', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = StructuralAlerts.objects.all()
         resource_name = 'structural_alert'
         collection_name = 'structural_alerts'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         prefetch_related = ['alertset']
 
         fields = (
@@ -92,15 +89,17 @@ class StructuralAlertsResource(ChemblModelResource):
         )
 
         filtering = {
-            'alert_id' : NUMBER_FILTERS,
+            'alert_id': NUMBER_FILTERS,
             'alert_name': CHAR_FILTERS,
             'smarts': CHAR_FILTERS,
-            'alert_set' : ALL_WITH_RELATIONS,
+            'alert_set': ALL_WITH_RELATIONS,
         }
 
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or 'canonical_smiles' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or
+                                                                'canonical_smiles' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ImageAwareSerializer(ChEMBLApiSerializer):
 
@@ -116,13 +115,14 @@ class ImageAwareSerializer(ChEMBLApiSerializer):
         'svg': 'image/svg',
     }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class CompoundStructuralAlertsResource(ChemblModelResource):
 
     molecule_chembl_id = fields.CharField('molecule__chembl_id')
     alert = fields.ForeignKey('chembl_webservices.resources.structural_alerts.StructuralAlertsResource',
-        'alert', full=True, null=True, blank=True)
+                              'alert', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = CompoundStructuralAlerts.objects.all()
@@ -133,12 +133,13 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
         fields = (
         )
         filtering = {
-            'alert' : ALL_WITH_RELATIONS,
+            'alert': ALL_WITH_RELATIONS,
             'molecule_chembl_id': ALL,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or 'canonical_smiles' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or
+                                                                'canonical_smiles' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail_impl(self, request, base_bundle, **kwargs):
         try:
@@ -185,7 +186,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
             bundle = self.alter_detail_data_to_serialize(request, bundle)
             return bundle, in_cache
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_image(self, obj, request, **kwargs):
         frmt = getattr(request, 'format', self._meta.default_format)
@@ -224,7 +225,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
         response.write(img)
         return response
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_svg(self, obj, size, engine, ignoreCoords):
 
@@ -237,7 +238,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
             if not highlight:
                 raise ImmediateHttpResponse(response=http.HttpNotFound())
             mol, matching = highlight
-            ret = render_rdkit(mol, matching, options, 'svg', size, ignoreCoords)
+            ret = render_rdkit(mol, matching, options, 'svg', size, False, ignoreCoords)
 
         elif engine == 'indigo':
             mol = highlight_substructure_indigo(molstring, smarts)
@@ -247,7 +248,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
 
         return ret, "image/svg+xml"
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_png(self, obj, size, engine, ignoreCoords):
 
@@ -264,7 +265,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
             if not highlight:
                 raise ImmediateHttpResponse(response=http.HttpNotFound())
             mol, matching = highlight
-            ret = render_rdkit(mol, matching, options, 'png', size, ignoreCoords)
+            ret = render_rdkit(mol, matching, options, 'png', size, False, ignoreCoords)
 
         elif engine == 'indigo':
             mol = highlight_substructure_indigo(molstring, smarts)
@@ -274,7 +275,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
 
         return ret, "image/png"
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
 
@@ -298,20 +299,20 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
         engine = kwargs.get('engine', 'rdkit')
         dimensions = kwargs.get('dimensions', 500)
         ignoreCoords = kwargs.get("ignoreCoords", False)
-        is_ajax  = kwargs.get("is_ajax", 2)
+        is_ajax = kwargs.get("is_ajax", 2)
 
         for key, value in filters.items():
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)), str(format),
-                                                     str(engine), str(dimensions), str(ignoreCoords), str(is_ajax),
-                                                     bgColor)
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % \
+                    (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                     str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)), str(format),
+                     str(engine), str(dimensions), str(ignoreCoords), str(is_ajax), bgColor)
         return cache_key
 
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def response(self, f):
 
@@ -338,4 +339,4 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
 
         return get_something
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

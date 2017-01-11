@@ -68,11 +68,12 @@ fakeSerializer.formats = ['png', 'svg', 'json']
 
 available_fields = [f.name for f in MoleculeDictionary._meta.fields]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ImageResource(ChemblModelResource):
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     image = fields.ApiField()
 
@@ -99,7 +100,7 @@ You can specify optional parameters:
                         CompoundStructures.objects.exclude(molecule__downgraded=True)
 
 
-#-----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
         return [
@@ -118,19 +119,19 @@ You can specify optional parameters:
             url(r"^(?P<resource_name>%s)/(?P<molecule__chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)\.(?P<format>png|svg)$" % MoleculeResource._meta.resource_name, self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         return []
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def error_response(self, request, errors, response_class=None):
         if request.format not in ChEMBLApiSerializer.formats:
             request.format = 'json'
         return super(ImageResource, self).error_response(request, errors, response_class)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def wrap_view(self, view):
         @csrf_exempt
@@ -141,11 +142,11 @@ You can specify optional parameters:
 
             elif request.method == 'POST':
                 if request.META.get('CONTENT_TYPE', 'application/json').startswith(
-                    ('multipart/form-data', 'multipart/form-data')):
+                        ('multipart/form-data', 'multipart/form-data')):
                     post_arg = request.POST.dict()
                 else:
                     post_arg = self.deserialize(request, request.body,
-                        format=request.META.get('CONTENT_TYPE', 'application/json'))
+                                                format=request.META.get('CONTENT_TYPE', 'application/json'))
                 kwargs.update(post_arg)
 
             request.format = kwargs.get('format', None)
@@ -158,7 +159,7 @@ You can specify optional parameters:
 
         return wrapper
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def cached_obj_get(self, **kwargs):
         """
@@ -173,7 +174,7 @@ You can specify optional parameters:
         except Exception:
             cached_bundle = None
             get_failed = True
-            self.log.error('Caching get exception', exc_info=True, extra={'kwargs': kwargs,})
+            self.log.error('Caching get exception', exc_info=True, extra={'kwargs': kwargs, })
 
         if cached_bundle is None:
             cached_bundle = self.obj_get(**kwargs)
@@ -181,11 +182,11 @@ You can specify optional parameters:
                 try:
                     self._meta.cache.set(cache_key, cached_bundle)
                 except Exception:
-                    self.log.error('Caching set exception', exc_info=True, extra={'kwargs': kwargs,})
+                    self.log.error('Caching set exception', exc_info=True, extra={'kwargs': kwargs, })
 
         return cached_bundle
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get(self, **kwargs):
 
@@ -200,8 +201,8 @@ You can specify optional parameters:
 
         filters.update({
             'molecule__chembl__entity_type':'COMPOUND',
-            'molecule__compoundstructures__isnull' : False,
-            'molecule__compoundproperties__isnull' : False,
+            'molecule__compoundstructures__isnull': False,
+            'molecule__compoundproperties__isnull': False,
         })
 
         try:
@@ -218,7 +219,7 @@ You can specify optional parameters:
 
         return molfile_list[0]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_image(self, mol, request, **kwargs):
         frmt = kwargs.get('format', 'png')
@@ -265,20 +266,20 @@ You can specify optional parameters:
         response.write(img)
         return response
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_svg(self, molstring, size, engine, ignoreCoords):
         ret = None
         if engine == 'rdkit':
             mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
             mol.UpdatePropertyCache(strict=False)
-            ret = render_rdkit(mol, None, options, 'svg', size, ignoreCoords)
+            ret = render_rdkit(mol, None, options, 'svg', size, True, ignoreCoords)
         elif engine == 'indigo':
             mol = indigoObj.loadMolecule(str(molstring))
             ret = render_indigo(mol, options, 'svg', 10, size, True, ignoreCoords)
         return ret, "image/svg+xml"
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_json(self, molstring, size, ignoreCoords):
         mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
@@ -289,7 +290,7 @@ You can specify optional parameters:
         leg = mol.GetProp("_Name") if mol.HasProp("_Name") else None
         return MolToJSON(mol, size=(size,size), legend=leg, fitImage=True, options=options), 'application/json'
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_png(self, molstring, size, engine, ignoreCoords):
         ret = None
@@ -300,13 +301,13 @@ You can specify optional parameters:
             options.atomLabelFontSize = fontSize
             mol = Chem.MolFromMolBlock(str(molstring), sanitize=False)
             mol.UpdatePropertyCache(strict=False)
-            ret = render_rdkit(mol, None, options, 'png', size, ignoreCoords)
+            ret = render_rdkit(mol, None, options, 'png', size, True, ignoreCoords)
         elif engine == 'indigo':
             mol = indigoObj.loadMolecule(str(molstring))
             ret = render_indigo(mol, options, 'png', 10, size, True, ignoreCoords)
         return ret, "image/png"
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail(self, request, **kwargs):
         cache_key = self.generate_cache_key('image', **dict({'is_ajax': request.is_ajax()}, **kwargs))
@@ -340,7 +341,7 @@ You can specify optional parameters:
             ret['X-ChEMBL-retrieval-time'] = end - start
         return ret
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def image_get(self, request, **kwargs):
         try:
@@ -352,7 +353,7 @@ You can specify optional parameters:
 
         return self.render_image(mol, request, **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def render_chemcha(self, molstring, size, ignoreCoords):
         buf = StringIO.StringIO()
@@ -370,15 +371,15 @@ You can specify optional parameters:
             options.dblBondOffset = .13
             options.atomLabelFontSize = fontSize
         else:
-            options={"useFraction": 1.0,
-                     "dblBondOffset": .13,
-                     'atomLabelFontSize': fontSize,}
+            options = {"useFraction": 1.0,
+                       "dblBondOffset": .13,
+                       'atomLabelFontSize': fontSize,}
         image = draw.MolToImage(mol, size=(size, size), fitImage=True, options=options)
         image = SineWarp().render(image)
         image.save(buf, "PNG")
         return buf.getvalue(), "image/png"
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
 
@@ -389,14 +390,13 @@ You can specify optional parameters:
         engine = kwargs.get('engine', 'rdkit')
         dimensions = kwargs.get('dimensions', 500)
         ignoreCoords = kwargs.get("ignoreCoords", False)
-        is_ajax  = kwargs.get("is_ajax", 2)
-
+        is_ajax = kwargs.get("is_ajax", 2)
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                                     str(molecule__chembl_id), str(standard_inchi_key), str(format),
-                                                     str(engine), str(dimensions), str(ignoreCoords), str(is_ajax),
-                                                     bgColor)
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                                          str(molecule__chembl_id), str(standard_inchi_key),
+                                                          str(format), str(engine), str(dimensions), str(ignoreCoords),
+                                                          str(is_ajax), bgColor)
         return cache_key
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

@@ -16,8 +16,8 @@ if sys.version_info < (2, 7, 3) or sys.version_info >= (3, 0, 0):
     raise Exception('ChEMBL software stack requires python 2.7.3 - 3.0.0')
 
 setup(
-    name='chembl_webservices',
-    version='2.5.2',
+    name='chembl-webservices',
+    version='2.5.5',
     author='Michal Nowotka',
     author_email='mnowotka@ebi.ac.uk',
     description='Python package providing chembl web services API.',
@@ -36,7 +36,7 @@ setup(
         'simplejson==2.3.2',
         'Pillow>=2.1.0',
         'django-tastypie==0.10',
-        'chembl_core_model>=0.8.2',
+        'chembl-core-model>=0.8.3',
         'cairocffi>=0.5.1',
         'numpy>=1.7.1',
         'mimeparse',

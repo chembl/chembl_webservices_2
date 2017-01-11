@@ -54,17 +54,18 @@ try:
 except AttributeError:
     WS_DEBUG = False
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ChemblModelResource(ModelResource):
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def __init__(self):
         self.log = logging.getLogger(__name__)
         super(ModelResource, self).__init__()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         """
@@ -79,7 +80,7 @@ class ChemblModelResource(ModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def determine_format(self, request):
         """
@@ -91,7 +92,7 @@ class ChemblModelResource(ModelResource):
             return self._meta.serializer.get_mime_for_format(request.format)
         return super(ChemblModelResource, self).determine_format(request)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def flatten_django_lists(self, lists):
         ret = []
@@ -103,7 +104,7 @@ class ChemblModelResource(ModelResource):
                 ret.append(x)
         return ret
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def answerBadRequest(self, request, error):
         response_class = http.HttpBadRequest
@@ -119,9 +120,9 @@ class ChemblModelResource(ModelResource):
             desired_format = 'application/xml'
             serialized = self._meta.serializer.serialize(data, desired_format, None)
         raise ImmediateHttpResponse(response=response_class(content=serialized,
-                                                    content_type=build_content_type(desired_format)))
+                                                            content_type=build_content_type(desired_format)))
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_datatables(self, request, **kwargs):
         """
@@ -140,7 +141,7 @@ class ChemblModelResource(ModelResource):
         self.authorized_read_detail(self.get_object_list(bundle.request), bundle)
         return self.create_response(request, self.build_columns_info())
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def build_columns_info(self):
         columns = []
@@ -168,7 +169,7 @@ class ChemblModelResource(ModelResource):
                     columns.append(r)
         return {"columns": columns}
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def build_schema(self):
         data = super(ChemblModelResource, self).build_schema()
@@ -182,7 +183,7 @@ class ChemblModelResource(ModelResource):
                 data['fields'][field_name]['schema'] = nested_schema
         return data
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def apply_sorting(self, obj_list, options=None):
         try:
@@ -193,8 +194,7 @@ class ChemblModelResource(ModelResource):
 
             if not 'order_by' in options:
                 if not 'sort_by' in options:
-                    # Nothing to alter the order. Return what we've got.
-                    return obj_list
+                    return obj_list.order_by('pk')
                 else:
                     warnings.warn("'sort_by' is a deprecated parameter. Please use 'order_by' instead.")
                     parameter_name = 'sort_by'
@@ -234,16 +234,20 @@ class ChemblModelResource(ModelResource):
                     related_resource = field.get_related_resource(None)
                     related_field_name = order_by_bits[1]
                     if related_field_name in related_resource.fields:
-                        order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] + [related_resource.fields[related_field_name].attribute])))
+                        order_by_args.append("%s%s" %
+                                             (order,
+                                              LOOKUP_SEP.join([self.fields[field_name].attribute] +
+                                                              [related_resource.fields[related_field_name].attribute])))
                         continue
 
-                order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] + order_by_bits[1:])))
+                order_by_args.append("%s%s" %
+                                     (order, LOOKUP_SEP.join([self.fields[field_name].attribute] + order_by_bits[1:])))
 
             return obj_list.order_by(*order_by_args)
         except FieldError as e:
             return self.answerBadRequest(None, e)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def wrap_view(self, view):
         @csrf_exempt
@@ -304,7 +308,7 @@ class ChemblModelResource(ModelResource):
 
         return wrapper
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def unquote_args(self, args):
         if isinstance(args, basestring):
@@ -320,7 +324,7 @@ class ChemblModelResource(ModelResource):
                     args[idx] = self.unquote_args(arg)
         return args
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def _handle_database_error(self, error, request, kwargs):
         msg = str(error.message)
@@ -343,7 +347,7 @@ class ChemblModelResource(ModelResource):
             raise ImmediateHttpResponse(response=self._handle_500(request, error))
 
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def list_cache_handler(self, f):
 
@@ -377,9 +381,9 @@ class ChemblModelResource(ModelResource):
             except ValueError:
                 raise BadRequest("Invalid limit or offset provided. Please provide integers.")
             if start_slice == end_slice:
-                pages = [{'offset':start_slice, 'limit':max_limit}]
+                pages = [{'offset': start_slice, 'limit': max_limit}]
             else:
-                pages = [{'offset':start_slice, 'limit':max_limit}, {'offset':end_slice, 'limit':max_limit}]
+                pages = [{'offset': start_slice, 'limit': max_limit}, {'offset': end_slice, 'limit': max_limit}]
 
             for page in pages:
                 if get_failed:
@@ -415,54 +419,75 @@ class ChemblModelResource(ModelResource):
                 if count < max_limit:
                     len(sorted_objects)
                 objs = []
-                paginator = self._meta.paginator_class(paginator_info, sorted_objects, resource_uri=self.get_resource_uri(None, url_name),
-                    limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                    format=request.format, params=kwargs, method=request.method)
+                paginator = self._meta.paginator_class(paginator_info,
+                                                       sorted_objects,
+                                                       resource_uri=self.get_resource_uri(None, url_name),
+                                                       limit=self._meta.limit,
+                                                       max_limit=self._meta.max_limit,
+                                                       collection_name=self._meta.collection_name,
+                                                       format=request.format,
+                                                       params=kwargs,
+                                                       method=request.method)
                 meta = paginator.get_meta(False)
                 meta['total_count'] = count
                 if request.method.upper() == 'GET':
                     meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
-                    meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(), meta['total_count'])
+                    meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(),
+                                                      meta['total_count'])
                 for page in pages:
                     if page.get('in_cache') and page.get('count') == meta.get('total_count'):
                         objs.extend(page.get('slice'))
                     else:
-                        paginator = self._meta.paginator_class(page, sorted_objects, resource_uri=self.get_resource_uri(None, url_name),
-                            limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                            format=request.format, params=kwargs, method=request.method)
+                        paginator = self._meta.paginator_class(page,
+                                                               sorted_objects,
+                                                               resource_uri=self.get_resource_uri(None, url_name),
+                                                               limit=self._meta.limit,
+                                                               max_limit=self._meta.max_limit,
+                                                               collection_name=self._meta.collection_name,
+                                                               format=request.format,
+                                                               params=kwargs,
+                                                               method=request.method)
                         slice = paginator.get_slice(paginator.get_limit(), paginator.get_offset())
                         len(slice)
                         objs.extend(slice)
                         if not get_failed:
                             try:
-                                self._meta.cache.set(page.get('cache_key'), {'slice':slice, 'count': meta.get('total_count')})
+                                self._meta.cache.set(page.get('cache_key'), {'slice': slice,
+                                                                             'count': meta.get('total_count')})
                             except Exception:
-                                self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path,})
+                                self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path, })
                                 get_failed = False
 
             else:
                 objs = list(itertools.chain.from_iterable([page.get('slice') for page in pages]))
-                paginator = self._meta.paginator_class(paginator_info, [], resource_uri=self.get_resource_uri(None, url_name),
-                    limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                    format=request.format, params=kwargs, method=request.method)
+                paginator = self._meta.paginator_class(paginator_info,
+                                                       [],
+                                                       resource_uri=self.get_resource_uri(None, url_name),
+                                                       limit=self._meta.limit,
+                                                       max_limit=self._meta.max_limit,
+                                                       collection_name=self._meta.collection_name,
+                                                       format=request.format,
+                                                       params=kwargs,
+                                                       method=request.method)
                 meta = paginator.get_meta(False)
                 meta['total_count'] = pages[0]['count']
                 if request.method.upper() == 'GET':
                     meta['previous'] = paginator.get_previous(paginator.get_limit(), paginator.get_offset())
-                    meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(), meta['total_count'])
+                    meta['next'] = paginator.get_next(paginator.get_limit(), paginator.get_offset(),
+                                                      meta['total_count'])
 
             offset = meta.get('offset') - start_slice
 
             obj_list = {
-            self._meta.collection_name: objs[offset:offset + meta.get('limit')],
-            'page_meta': meta,
+                self._meta.collection_name: objs[offset:offset + meta.get('limit')],
+                'page_meta': meta,
             }
 
             return obj_list, in_cache
 
         return handle
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_search_results(self, user_query):
 
@@ -477,13 +502,13 @@ class ChemblModelResource(ModelResource):
 
         return dict(res)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def check_user_search_query(self, user_query):
         if len(user_query) < 3:
             raise BadRequest('Search query too short')
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def search_source(self, bundle, **kwargs):
 
@@ -491,10 +516,10 @@ class ChemblModelResource(ModelResource):
 
         try:
             if not sqs:
-                self.log.error('No search query set', exc_info=True, extra={'request': user_query,})
+                self.log.error('No search query set', exc_info=True, extra={'request': user_query, })
                 return self._meta.queryset.none()
         except Exception as e:
-            self.log.error('Search error in search_resource', exc_info=True, extra={'request': user_query,})
+            self.log.error('Search error in search_resource', exc_info=True, extra={'request': user_query, })
             return self._meta.queryset.none()
 
         if not user_query:
@@ -536,7 +561,7 @@ class ChemblModelResource(ModelResource):
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def list_source(self, bundle, **kwargs):
         objects = self.obj_get_list(bundle=bundle, **kwargs)
@@ -544,17 +569,17 @@ class ChemblModelResource(ModelResource):
         sorted_objects = self.prefetch_related(sorted_objects)
         return sorted_objects
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def cached_obj_get_list(self, bundle, **kwargs):
         return self.list_cache_handler(self.list_source)(bundle, 'list', 'api_dispatch_list', **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def cached_obj_get_search(self, bundle, **kwargs):
         return self.list_cache_handler(self.search_source)(bundle, 'search', 'api_get_search', **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def detail_cache_handler(self,f):
 
@@ -572,7 +597,7 @@ class ChemblModelResource(ModelResource):
             except Exception:
                 cached_bundle = None
                 get_failed = True
-                self.log.error('Caching get exception', exc_info=True, extra={'bundle': bundle.request.path,})
+                self.log.error('Caching get exception', exc_info=True, extra={'bundle': bundle.request.path, })
 
             if cached_bundle is None:
                 in_cache = False
@@ -581,12 +606,12 @@ class ChemblModelResource(ModelResource):
                     try:
                         self._meta.cache.set(cache_key, cached_bundle)
                     except Exception:
-                        self.log.error('Caching set exception', exc_info=True, extra={'bundle': bundle.request.path,})
+                        self.log.error('Caching set exception', exc_info=True, extra={'bundle': bundle.request.path, })
 
             return cached_bundle, in_cache
         return handle
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def cached_obj_get(self, bundle, **kwargs):
         """
@@ -596,7 +621,7 @@ class ChemblModelResource(ModelResource):
 
         return self.detail_cache_handler(self.obj_get)(bundle, 'detail', **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def response(self, f):
 
@@ -619,7 +644,7 @@ class ChemblModelResource(ModelResource):
 
         return get_something
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def full_dehydrate(self, bundle, for_list=False, for_search=False):
         """
@@ -659,13 +684,13 @@ class ChemblModelResource(ModelResource):
         bundle = self.dehydrate(bundle)
         return bundle
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def serialise_list(self,f, for_list, for_search):
 
         def handler(request, base_bundle, **kwargs):
             to_be_serialized, in_cache = f(bundle=base_bundle,
-                **self.remove_api_resource_names(kwargs))
+                                           **self.remove_api_resource_names(kwargs))
 
             # Dehydrate the bundles in preparation for serialization.
             bundles = []
@@ -681,29 +706,29 @@ class ChemblModelResource(ModelResource):
 
         return handler
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_list_impl(self, request, base_bundle, **kwargs):
         return self.serialise_list(self.cached_obj_get_list, for_list=True, for_search=False)(
                                                     request, base_bundle, **self.remove_api_resource_names(kwargs))
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_list(self, request, **kwargs):
         return self.response(self.get_list_impl)(request, **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_search_impl(self, request, base_bundle, **kwargs):
         return self.serialise_list(self.cached_obj_get_search, for_list=False, for_search=True)(
                                                     request, base_bundle, **self.remove_api_resource_names(kwargs))
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_search(self, request, **kwargs):
         return self.response(self.get_search_impl)(request, **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail(self, request, **kwargs):
         """
@@ -716,7 +741,7 @@ class ChemblModelResource(ModelResource):
         """
         return self.response(self.get_detail_impl)(request, **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail_impl(self, request, base_bundle, **kwargs):
         try:
@@ -732,7 +757,7 @@ class ChemblModelResource(ModelResource):
 
         return bundle, in_cache
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def dispatch(self, request_type, request, **kwargs):
         """
@@ -768,7 +793,7 @@ class ChemblModelResource(ModelResource):
 
         return response
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def build_filters(self, filters=None):
 
@@ -809,7 +834,7 @@ class ChemblModelResource(ModelResource):
 
         return dict_strip_unicode_keys(qs_filters), distinct
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prefetch_related(self, objects):
         related_fields = getattr(self._meta, 'prefetch_related', None)
@@ -817,7 +842,7 @@ class ChemblModelResource(ModelResource):
             return objects
         return objects.prefetch_related(*self._meta.prefetch_related)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get(self, bundle, **kwargs):
         """
@@ -847,7 +872,7 @@ class ChemblModelResource(ModelResource):
         except ValueError:
             raise ImmediateHttpResponse(response=http.HttpNotFound())
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get_list(self, bundle, **kwargs):
         """
@@ -879,10 +904,9 @@ class ChemblModelResource(ModelResource):
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
-    def filter_value_to_python(self, value, field_name, filters, filter_expr,
-            filter_type):
+    def filter_value_to_python(self, value, field_name, filters, filter_expr, filter_type):
         if value in ['true', 'True', True]:
             value = True
         elif value in ['false', 'False', False]:
@@ -910,7 +934,7 @@ class ChemblModelResource(ModelResource):
                     value = value[0].split(',')
         return value
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_multiple(self, request, **kwargs):
         """
@@ -952,7 +976,7 @@ class ChemblModelResource(ModelResource):
         self.log_throttled_access(request)
         return self.create_response(request, object_list)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def _handle_500(self, request, exception):
         import traceback
@@ -966,7 +990,6 @@ class ChemblModelResource(ModelResource):
         if isinstance(exception, NOT_FOUND_EXCEPTIONS):
             response_class = HttpResponseNotFound
             response_code = 404
-
 
         detailed_data = {
             "error_message": six.text_type(exception),
@@ -998,12 +1021,12 @@ class ChemblModelResource(ModelResource):
         else:
             data = {
                 "error_message": getattr(settings, 'TASTYPIE_CANNED_ERROR',
-                    "Sorry, this request could not be processed. Please try again later."),
+                                         "Sorry, this request could not be processed. Please try again later."),
             }
 
         return self.error_response(request, data, response_class=response_class)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
         smooshed = []
@@ -1027,8 +1050,9 @@ class ChemblModelResource(ModelResource):
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                str(limit), str(offset), str(query), '|'.join(order_bits), '|'.join(sorted(smooshed)))
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                                  str(limit), str(offset), str(query), '|'.join(order_bits),
+                                                  '|'.join(sorted(smooshed)))
         return cache_key
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

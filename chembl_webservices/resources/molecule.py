@@ -48,7 +48,8 @@ monkeypatch_tastypie_field()
 
 available_fields = [f.name for f in MoleculeDictionary._meta.fields]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class MoleculeSerializer(ChEMBLApiSerializer):
 
@@ -64,10 +65,9 @@ class MoleculeSerializer(ChEMBLApiSerializer):
         'sdf': 'text/plain',
     }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def to_mol(self, data, options=None):
-        print 'to_mol'
         ret = data.compoundstructures.molfile.rstrip() + '\n'
         if not options or 'no_chembl_id' in options:
             ret += '> <chembl_id>\n{0}\n\n'.format(data.chembl_id)
@@ -75,13 +75,9 @@ class MoleculeSerializer(ChEMBLApiSerializer):
             ret += '> <chebi_id>\n{0}\n\n'.format(data.chebi_id)
         return ret
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def to_sdf(self, data, options=None):
-        print 'to_sdf'
-        print data
-        print type(data)
-        print dir(data)
         if not isinstance(data, dict):
             return self.to_mol(data.obj, options)
         ret = ''
@@ -93,7 +89,8 @@ class MoleculeSerializer(ChEMBLApiSerializer):
                     continue
         return ret
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class MoleculeHierarchyResource(ChemblModelResource):
 
@@ -104,12 +101,12 @@ class MoleculeHierarchyResource(ChemblModelResource):
         queryset = MoleculeHierarchy.objects.all()
         resource_name = 'molecule_hierarchy'
         filtering = {
-            'molecule_chembl_id' : ALL,
-            'parent_chembl_id' : ALL,
+            'molecule_chembl_id': ALL,
+            'parent_chembl_id': ALL,
         }
         ordering = filtering.keys()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
 class MoleculeSynonymsResource(ChemblModelResource):
 
@@ -120,7 +117,8 @@ class MoleculeSynonymsResource(ChemblModelResource):
         collection_name = 'molecule_synonyms'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class MoleculeStructuresResource(ChemblModelResource):
 
@@ -138,11 +136,12 @@ class MoleculeStructuresResource(ChemblModelResource):
         )
 
         filtering = {
-            'canonical_smiles' : CHAR_FILTERS,
-            'standard_inchi_key' : CHAR_FILTERS,
+            'canonical_smiles': CHAR_FILTERS,
+            'standard_inchi_key': CHAR_FILTERS,
         }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class MoleculePropertiesResource(ChemblModelResource):
 
@@ -180,51 +179,52 @@ class MoleculePropertiesResource(ChemblModelResource):
         )
 
         filtering = {
-            'acd_logd' : NUMBER_FILTERS,
-            'acd_logp' : NUMBER_FILTERS,
-            'acd_most_apka' : NUMBER_FILTERS,
-            'acd_most_bpka' : NUMBER_FILTERS,
-            'alogp' : NUMBER_FILTERS,
-            'aromatic_rings' : NUMBER_FILTERS,
-            'full_molformula' : CHAR_FILTERS,
-            'full_mwt' : NUMBER_FILTERS,
-            'hba' : NUMBER_FILTERS,
-            'hbd' : NUMBER_FILTERS,
-            'heavy_atoms' : NUMBER_FILTERS,
-            'med_chem_friendly' : CHAR_FILTERS,
-            'molecular_species' : CHAR_FILTERS,
-            'mw_freebase' : NUMBER_FILTERS,
-            'mw_monoisotopic' : NUMBER_FILTERS,
-            'num_alerts' : NUMBER_FILTERS,
-            'num_ro5_violations' : NUMBER_FILTERS,
-            'psa' : NUMBER_FILTERS,
-            'qed_weighted' : NUMBER_FILTERS,
-            'ro3_pass' : CHAR_FILTERS,
-            'rtb' : NUMBER_FILTERS,
-            'hba_lipinski' : NUMBER_FILTERS,
-            'hbd_lipinski' : NUMBER_FILTERS,
-            'num_lipinski_ro5_violations' : NUMBER_FILTERS,
+            'acd_logd': NUMBER_FILTERS,
+            'acd_logp': NUMBER_FILTERS,
+            'acd_most_apka': NUMBER_FILTERS,
+            'acd_most_bpka': NUMBER_FILTERS,
+            'alogp': NUMBER_FILTERS,
+            'aromatic_rings': NUMBER_FILTERS,
+            'full_molformula': CHAR_FILTERS,
+            'full_mwt': NUMBER_FILTERS,
+            'hba': NUMBER_FILTERS,
+            'hbd': NUMBER_FILTERS,
+            'heavy_atoms': NUMBER_FILTERS,
+            'med_chem_friendly': CHAR_FILTERS,
+            'molecular_species': CHAR_FILTERS,
+            'mw_freebase': NUMBER_FILTERS,
+            'mw_monoisotopic': NUMBER_FILTERS,
+            'num_alerts': NUMBER_FILTERS,
+            'num_ro5_violations': NUMBER_FILTERS,
+            'psa': NUMBER_FILTERS,
+            'qed_weighted': NUMBER_FILTERS,
+            'ro3_pass': CHAR_FILTERS,
+            'rtb': NUMBER_FILTERS,
+            'hba_lipinski': NUMBER_FILTERS,
+            'hbd_lipinski': NUMBER_FILTERS,
+            'num_lipinski_ro5_violations': NUMBER_FILTERS,
         }
         ordering = filtering.keys()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class MoleculeResource(ChemblModelResource):
 
     molecule_chembl_id = fields.CharField('chembl__chembl_id')
     molecule_properties = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculePropertiesResource',
-        'compoundproperties', full=True, null=True, blank=True)
+                                            'compoundproperties', full=True, null=True, blank=True)
     molecule_hierarchy = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculeHierarchyResource',
-        'moleculehierarchy', full=True, null=True, blank=True)
+                                           'moleculehierarchy', full=True, null=True, blank=True)
     molecule_structures = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculeStructuresResource',
-        'compoundstructures', full=True, null=True, blank=True)
+                                            'compoundstructures', full=True, null=True, blank=True)
     molecule_synonyms = fields.ToManyField('chembl_webservices.resources.molecule.MoleculeSynonymsResource',
-        'moleculesynonyms_set', full=True, null=True, blank=True)
+                                           'moleculesynonyms_set', full=True, null=True, blank=True)
     helm_notation = fields.CharField('biotherapeutics__helm_notation', null=True, blank=True)
     biotherapeutic = fields.ForeignKey('chembl_webservices.resources.bio_component.BiotherapeuticComponentsResource',
-        'biotherapeutics', full=True, null=True, blank=True)
+                                       'biotherapeutics', full=True, null=True, blank=True)
     atc_classifications = fields.ToManyField('chembl_webservices.resources.atc.AtcResource',
-        'atcclassification_set', full=False, null=True, blank=True)
+                                             'atcclassification_set', full=False, null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -233,7 +233,7 @@ class MoleculeResource(ChemblModelResource):
         excludes = ['molregno']
         resource_name = 'molecule'
         collection_name = 'molecules'
-        description = {'api_dispatch_list' : '''
+        description = {'api_dispatch_list': '''
 Retrieve list of molecules. Apart from the standard set of relation types, there is one specific operator:
 
 *  __flexmatch__ \- matches _SMILES_ with the same structure, as opposed to exact match, for example:
@@ -249,9 +249,13 @@ will match two molecules with:
 _SMILES_.
         '''}
         serializer = MoleculeSerializer(resource_name,
-            {collection_name : resource_name, 'biocomponents':'biocomponent', 'molecule_synonyms': 'synonym', 'atc_classifications': 'level5'})
+            {collection_name: resource_name, 'biocomponents': 'biocomponent', 'molecule_synonyms': 'synonym',
+             'atc_classifications': 'level5'})
         detail_uri_name = 'chembl_id'
-        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'chembl', 'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy', 'compoundstructures', 'moleculehierarchy__parent_molecule', 'moleculehierarchy__parent_molecule__chembl']
+        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'chembl',
+                            'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy',
+                            'compoundstructures', 'moleculehierarchy__parent_molecule',
+                            'moleculehierarchy__parent_molecule__chembl']
         fields = (
             'atc_classifications',
             'availability_type',
@@ -291,43 +295,43 @@ _SMILES_.
         )
 
         filtering = {
-            'availability_type' : CHAR_FILTERS,
-            'biotherapeutic' : ALL_WITH_RELATIONS,
-            'black_box_warning' : FLAG_FILTERS,
-            'chebi_par_id' : NUMBER_FILTERS,
-            'chirality' : NUMBER_FILTERS,
-            'dosed_ingredient' : FLAG_FILTERS,
-            'first_approval' : NUMBER_FILTERS,
-            'first_in_class' : FLAG_FILTERS,
-            'indication_class' : CHAR_FILTERS,
-            'inorganic_flag' : FLAG_FILTERS,
+            'availability_type': CHAR_FILTERS,
+            'biotherapeutic': ALL_WITH_RELATIONS,
+            'black_box_warning': FLAG_FILTERS,
+            'chebi_par_id': NUMBER_FILTERS,
+            'chirality': NUMBER_FILTERS,
+            'dosed_ingredient': FLAG_FILTERS,
+            'first_approval': NUMBER_FILTERS,
+            'first_in_class': FLAG_FILTERS,
+            'indication_class': CHAR_FILTERS,
+            'inorganic_flag': FLAG_FILTERS,
             'helm_notation': CHAR_FILTERS,
-            'max_phase' : NUMBER_FILTERS,
-            'molecule_chembl_id' : ALL,
-            'atc_classifications' : ALL_WITH_RELATIONS,
+            'max_phase': NUMBER_FILTERS,
+            'molecule_chembl_id': ALL,
+            'atc_classifications': ALL_WITH_RELATIONS,
             'molecule_hierarchy': ALL_WITH_RELATIONS,
-            'molecule_properties' : ALL_WITH_RELATIONS,
+            'molecule_properties': ALL_WITH_RELATIONS,
             'molecule_structures': ALL_WITH_RELATIONS,
-            'molecule_type' : CHAR_FILTERS,
-            'natural_product' : FLAG_FILTERS,
-            'oral' : FLAG_FILTERS,
-            'parenteral' : FLAG_FILTERS,
-            'polymer_flag' : FLAG_FILTERS,
-            'pref_name' : CHAR_FILTERS,
-            'prodrug' : FLAG_FILTERS,
-            'structure_type' : CHAR_FILTERS,
-            'therapeutic_flag' : FLAG_FILTERS,
-            'topical' : FLAG_FILTERS,
-            'usan_stem' : CHAR_FILTERS,
-            'usan_stem_definition' : CHAR_FILTERS,
-            'usan_substem' : CHAR_FILTERS,
-            'usan_year' : NUMBER_FILTERS,
+            'molecule_type': CHAR_FILTERS,
+            'natural_product': FLAG_FILTERS,
+            'oral': FLAG_FILTERS,
+            'parenteral': FLAG_FILTERS,
+            'polymer_flag': FLAG_FILTERS,
+            'pref_name': CHAR_FILTERS,
+            'prodrug': FLAG_FILTERS,
+            'structure_type': CHAR_FILTERS,
+            'therapeutic_flag': FLAG_FILTERS,
+            'topical': FLAG_FILTERS,
+            'usan_stem': CHAR_FILTERS,
+            'usan_stem_definition': CHAR_FILTERS,
+            'usan_substem': CHAR_FILTERS,
+            'usan_year': NUMBER_FILTERS,
             'withdrawn_flag': FLAG_FILTERS,
             'withdrawn_year': NUMBER_FILTERS,
             'withdrawn_country': CHAR_FILTERS,
             'withdrawn_reason': CHAR_FILTERS,
         }
-        ordering  = [
+        ordering = [
             'availability_type',
             'biotherapeutic',
             'black_box_warning',
@@ -364,7 +368,7 @@ _SMILES_.
             'withdrawn_reason',
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
 
@@ -390,12 +394,12 @@ _SMILES_.
             url(r"^(?P<resource_name>%s)/(?P<molecule_structures__canonical_smiles>[^jx]+)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         return []
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_multiple(self, request, **kwargs):
         """
@@ -443,14 +447,14 @@ _SMILES_.
         self.log_throttled_access(request)
         return self.create_response(request, object_list)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def decode_plus(self, kwargs):
-        return {k: v.replace(' ', '+') if
-            (isinstance(k,basestring) and k.startswith('molecule_structures__canonical_smiles'))
-                else v for k,v in kwargs.items() }
+        return {k: v.replace(' ', '+') if (isinstance(k, basestring)
+                                           and k.startswith('molecule_structures__canonical_smiles'))
+        else v for k, v in kwargs.items()}
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def remove_api_resource_names(self, kwargs):
         aliases = {'smiles': 'molecule_structures__canonical_smiles'}
@@ -460,7 +464,7 @@ _SMILES_.
         decoded_kwargs = self.decode_plus(kwargs)
         return super(MoleculeResource, self).remove_api_resource_names(decoded_kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def alter_list_data_to_serialize(self, request, data):
         bundles = data['molecules']
@@ -468,7 +472,7 @@ _SMILES_.
             bundles[idx] = self.alter_detail_data_to_serialize(request, bundle)
         return data
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def alter_detail_data_to_serialize(self, request, data):
         atc = data.data['atc_classifications']
@@ -476,7 +480,7 @@ _SMILES_.
             atc[idx] = item.split('/')[-1]
         return data
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def build_filters(self, filters=None, for_cache_key=False):
 
@@ -527,7 +531,7 @@ _SMILES_.
 
         return dict_strip_unicode_keys(qs_filters), distinct
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
         smooshed = []
@@ -551,11 +555,11 @@ _SMILES_.
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
                                 str(limit), str(offset), str(query), '|'.join(order_bits), '|'.join(sorted(smooshed)))
         return cache_key
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_search_results(self, user_query):
 
@@ -580,4 +584,4 @@ _SMILES_.
 
         return res
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

@@ -3,6 +3,7 @@ __author__ = 'mnowotka'
 import StringIO
 from chembl_beaker.beaker.draw import cairoCanvas
 from chembl_beaker.beaker import draw
+from collections import defaultdict
 
 try:
     from rdkit import Chem
@@ -39,7 +40,7 @@ except ImportError:
     if not hasattr(cairo, 'HAS_SVG_SURFACE'):
         cairo.HAS_SVG_SURFACE = True
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
 options = DrawingOptions()
 options.useFraction = 1.0
@@ -48,10 +49,13 @@ options.bgColor = None
 
 NUMBER_FILTERS = ['exact', 'range', 'gt', 'gte', 'lt', 'lte', 'in', 'isnull']
 FLAG_FILTERS = ['exact', 'isnull']
-CHAR_FILTERS = ['exact', 'iexact', 'contains', 'icontains', 'istartswith', 'startswith', 'endswith', 'iendswith', 'search', 'regex', 'iregex', 'isnull', 'in']
+CHAR_FILTERS = ['exact', 'iexact', 'contains', 'icontains', 'istartswith', 'startswith', 'endswith', 'iendswith',
+                'search', 'regex', 'iregex', 'isnull', 'in']
 DATE_FILTERS = ['exact', 'year', 'month', 'day', 'week_day', 'isnull']
+STANDARD_RDKIT_COLORS = {16: (0.8, 0.8, 0), 1: (0.55, 0.55, 0.55), 35: (0.5, 0.3, 0.1), 17: (0, 0.8, 0),
+                         0: (0.5, 0.5, 0.5), 7: (0, 0, 1), 8: (1, 0, 0), 9: (0.2, 0.8, 0.8), 15: (1, 0.5, 0)}
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
 COLOR_NAMES = {
     'aliceblue': (0.941176, 0.972549, 1),
@@ -220,7 +224,8 @@ COLOR_NAMES = {
     'yellowgreen': (0.603922, 0.803922, 0.196078),
 }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 def render_indigo(mol, options, frmt, margin, size, colors, ignoreCoords):
 
@@ -237,9 +242,16 @@ def render_indigo(mol, options, frmt, margin, size, colors, ignoreCoords):
     image = renderer.renderToBuffer(mol)
     return image.tostring()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
-def render_rdkit(mol, highlight, options, frmt, size, ignoreCoords):
+
+def render_rdkit(mol, highlight, options, frmt, size, colors, ignoreCoords):
+
+    if not colors:
+        dd = defaultdict(lambda: (0, 0, 0))
+        options.elemDict = dd
+    else:
+        options.elemDict = STANDARD_RDKIT_COLORS
 
     leg = mol.GetProp("_Name") if mol.HasProp("_Name") else None
     matching = []
@@ -249,7 +261,8 @@ def render_rdkit(mol, highlight, options, frmt, size, ignoreCoords):
         AllChem.Compute2DCoords(mol)
     if frmt == 'png':
         buf = StringIO.StringIO()
-        image = draw.MolToImage(mol, size=(size, size), legend=leg, fitImage=True, options=options, highlightAtoms=matching)
+        image = draw.MolToImage(mol, size=(size, size), legend=leg, fitImage=True, options=options,
+                                highlightAtoms=matching)
         image.save(buf, "PNG")
         return buf.getvalue()
 
@@ -261,12 +274,14 @@ def render_rdkit(mol, highlight, options, frmt, size, ignoreCoords):
         surf = cairo.SVGSurface(imageData, size, size)
         ctx = cairo.Context(surf)
         canv = cairoCanvas.Canvas(ctx=ctx, size=(size, size), imageType='svg')
-        draw.MolToImage(mol, size=(size, size), legend=leg, canvas=canv, fitImage=True, options=options, highlightAtoms=matching)
+        draw.MolToImage(mol, size=(size, size), legend=leg, canvas=canv, fitImage=True, options=options,
+                        highlightAtoms=matching)
         canv.flush()
         surf.finish()
         return imageData.getvalue()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 def highlight_substructure_rdkit(molstring, smarts):
     mol = Chem.MolFromMolBlock(str(molstring), sanitize=True)
@@ -280,10 +295,10 @@ def highlight_substructure_rdkit(molstring, smarts):
     matching = mol.GetSubstructMatch(patt)
     return mol, matching
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 def highlight_substructure_indigo(molstring, smarts):
-
 
     mol = indigoObj.loadMolecule(str(molstring))
     patt = indigoObj.loadSmarts(str(smarts))
@@ -292,4 +307,4 @@ def highlight_substructure_indigo(molstring, smarts):
         return
     return match.highlightedTarget()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
