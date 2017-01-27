@@ -6,7 +6,6 @@ from tastypie.exceptions import InvalidSortError
 import re
 import time
 import logging
-import mimeparse
 import itertools
 from urllib import unquote
 from tastypie import http
@@ -20,7 +19,6 @@ from tastypie.utils import dict_strip_unicode_keys
 from tastypie.utils.mime import build_content_type
 from tastypie.exceptions import NotFound
 from tastypie import fields
-import json
 from django.utils import six
 from django.http import HttpResponse
 from django.http import HttpResponseNotFound
@@ -35,6 +33,7 @@ from django.core.exceptions import FieldError
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from django.db import DatabaseError
+from chembl_webservices.core.utils import represents_int
 
 try:
     from haystack.query import SearchQuerySet
@@ -932,6 +931,10 @@ class ChemblModelResource(ModelResource):
                     value = value.split(',')
                 elif type(value) in (list, tuple) and len(value) == 1 and isinstance(value[0], basestring):
                     value = value[0].split(',')
+        if filter_type == 'range':
+            if len(value) != 2 or not represents_int(value[0]) or not represents_int(value[1]):
+                raise BadRequest(
+                    "Invalid range: should consist of two integers separated by comma, got {0} instead.".format(value))
         return value
 
 # ----------------------------------------------------------------------------------------------------------------------

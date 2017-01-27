@@ -41,7 +41,8 @@ except AttributeError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class SimilarityResource(MoleculeResource):
 
@@ -50,9 +51,9 @@ class SimilarityResource(MoleculeResource):
     class Meta(MoleculeResource.Meta):
         queryset = MoleculeDictionary.objects.all()
         resource_name = 'similarity'
-        required_params = {'api_dispatch_detail' : ['smiles', 'similarity']}
+        required_params = {'api_dispatch_detail': ['smiles', 'similarity']}
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
 
@@ -70,12 +71,12 @@ class SimilarityResource(MoleculeResource):
             url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx]+)/(?P<similarity>\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         return []
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get_list(self, bundle, **kwargs):
         smiles = kwargs.pop('smiles', None)
@@ -88,21 +89,24 @@ class SimilarityResource(MoleculeResource):
         similarity = kwargs.pop('similarity')
         if not smiles:
             if chembl_id:
-                mol_filters = {'chembl_id':chembl_id}
+                mol_filters = {'chembl_id': chembl_id}
             else:
-                mol_filters = {'compoundstructures__standard_inchi_key' : std_inchi_key}
+                mol_filters = {'compoundstructures__standard_inchi_key': std_inchi_key}
             try:
-                objects = self.apply_filters(bundle.request, mol_filters).values_list('compoundstructures__canonical_smiles',
-                    flat=True)
+                objects = self.apply_filters(bundle.request, mol_filters).values_list(
+                    'compoundstructures__canonical_smiles', flat=True)
                 stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in mol_filters.items()])
                 length = len(objects)
                 if length <= 0:
                     raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
-                                                               (self._meta.object_class.__name__, stringified_kwargs))
+                                             (self._meta.object_class.__name__, stringified_kwargs))
                 elif length > 1:
                     raise MultipleObjectsReturned("More than '%s' matched '%s'." % (self._meta.object_class.__name__,
                                                                                     stringified_kwargs))
                 smiles = objects[0]
+                if not smiles:
+                    raise ObjectDoesNotExist(
+                        "No chemical structure defined for identifier {0}".format(chembl_id or std_inchi_key))
             except TypeError as e:
                 if e.message.startswith('Related Field has invalid lookup:'):
                     raise BadRequest(e.message)
@@ -119,10 +123,10 @@ class SimilarityResource(MoleculeResource):
             self._handle_database_error(e, bundle.request, {'smiles': smiles})
 
         filters = {
-            'chembl__entity_type':'COMPOUND',
-            'compoundstructures__isnull' : False,
-            'pk__in' : MoleculeHierarchy.objects.all().values_list('parent_molecule_id'),
-            'compoundproperties__isnull' : False,
+            'chembl__entity_type': 'COMPOUND',
+            'compoundstructures__isnull': False,
+            'pk__in': MoleculeHierarchy.objects.all().values_list('parent_molecule_id'),
+            'compoundproperties__isnull': False,
         }
 
         standard_filters, distinct = self.build_filters(filters=kwargs)
@@ -140,19 +144,19 @@ class SimilarityResource(MoleculeResource):
         objects = self.apply_sorting(objects, similarity_map, options=all_request_params)
         return self.authorized_read_list(objects, bundle)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def cached_obj_get_list(self, bundle, **kwargs):
         kwargs = self.unquote_args(kwargs)
         return self.detail_cache_handler(self.obj_get_list)(bundle, 'list', **kwargs)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_list_impl(self, request, base_bundle, **kwargs):
         return self.serialise_list(self.list_cache_handler(self.cached_obj_get_list), for_list=True,
-                            for_search=False)(request, base_bundle, **self.remove_api_resource_names(kwargs))
+                                   for_search=False)(request, base_bundle, **self.remove_api_resource_names(kwargs))
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def list_cache_handler(self, f):
 
@@ -179,10 +183,11 @@ class SimilarityResource(MoleculeResource):
             except(ValueError, AttributeError):
                 raise BadRequest("Invalid Similarity Score supplied: %s" % original_similarity)
 
-            objects, in_cache = f(bundle=bundle, **self.remove_api_resource_names(kwargs)) #self.cached_obj_get_list(bundle=base_bundle, **self.remove_api_resource_names(kwargs))
+            objects, in_cache = f(bundle=bundle, **self.remove_api_resource_names(kwargs))
 
             try:
-                limit = int(re.search(r'^\d+', str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
+                limit = int(re.search(r'^\d+', str(kwargs.pop('limit',
+                                                              getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
             except(ValueError, AttributeError):
                 limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
 
@@ -194,8 +199,9 @@ class SimilarityResource(MoleculeResource):
             paginator_info = {'limit': limit, 'offset': offset}
 
             paginator = self._meta.paginator_class(paginator_info, objects, resource_uri=self.get_resource_uri(),
-                limit=self._meta.limit, max_limit=self._meta.max_limit, collection_name=self._meta.collection_name,
-                    method=request.method, params=self.remove_api_resource_names(kwargs), format=request.format)
+                                                   limit=self._meta.limit, max_limit=self._meta.max_limit,
+                                                   collection_name=self._meta.collection_name, method=request.method,
+                                                   params=self.remove_api_resource_names(kwargs), format=request.format)
             to_be_serialized = paginator.page()
 
             return to_be_serialized, in_cache
@@ -203,7 +209,7 @@ class SimilarityResource(MoleculeResource):
         return handle
 
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def apply_sorting(self, obj_list, similarity_map, options=None):
         """
@@ -220,8 +226,8 @@ class SimilarityResource(MoleculeResource):
 
         parameter_name = 'order_by'
 
-        if not 'order_by' in options:
-            if not 'sort_by' in options:
+        if 'order_by' not in options:
+            if 'sort_by' not in options:
                 # Nothing to alter the order. Return what we've got.
                 options['order_by'] = '-similarity'
             else:
@@ -239,7 +245,7 @@ class SimilarityResource(MoleculeResource):
                 order_bits = [order_bits]
 
         if (order_bits.index('similarity') == 0 if 'similarity' in order_bits else False) or \
-                    (order_bits.index('-similarity') == 0 if '-similarity' in order_bits else False):
+                (order_bits.index('-similarity') == 0 if '-similarity' in order_bits else False):
             obj_list = self.prefetch_related(obj_list)
             for obj in obj_list:
                 sim = similarity_map[obj.molregno]
@@ -260,24 +266,25 @@ class SimilarityResource(MoleculeResource):
                     field_name = order_by_bits[0][1:]
                     order = '-'
 
-                if not field_name in self.fields:
+                if field_name not in self.fields:
                     # It's not a field we know about. Move along citizen.
                     raise InvalidSortError("No matching '%s' field for ordering on." % field_name)
 
-                if not field_name in self._meta.ordering:
+                if field_name not in self._meta.ordering:
                     raise InvalidSortError("The '%s' field does not allow ordering." % field_name)
 
                 if self.fields[field_name].attribute is None:
                     raise InvalidSortError("The '%s' field has no 'attribute' for ordering with." % field_name)
 
-                order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] + order_by_bits[1:])))
+                order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] +
+                                                                      order_by_bits[1:])))
 
             obj_list = self.prefetch_related(obj_list.order_by(*order_by_args))
             for obj in obj_list:
                 obj.similarity = similarity_map[obj.molregno]
             return obj_list
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_resource_uri(self, bundle_or_obj=None, url_name='dispatch_list'):
         if bundle_or_obj is not None:
@@ -288,12 +295,12 @@ class SimilarityResource(MoleculeResource):
         except NoReverseMatch:
             return ''
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def remove_api_resource_names(self, kwargs):
         return super(MoleculeResource, self).remove_api_resource_names(self.decode_plus(kwargs))
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
         smooshed = []
@@ -306,8 +313,8 @@ class SimilarityResource(MoleculeResource):
 
         similarity = kwargs.get('similarity', 0)
 
-        fil = {k: v for k,v in kwargs.iteritems() if k not in
-                                                  ('smiles', 'standard_inchi_key', 'chembl_id', 'similarity', 'bundle')}
+        fil = {k: v for k, v in kwargs.iteritems() if k not in
+               ('smiles', 'standard_inchi_key', 'chembl_id', 'similarity', 'bundle')}
 
         filters, _ = self.build_filters(fil)
 
@@ -324,8 +331,8 @@ class SimilarityResource(MoleculeResource):
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args), pk,
-                                               str(similarity), '|'.join(order_bits), '|'.join(sorted(smooshed)))
+        cache_key = "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args), pk,
+                                              str(similarity), '|'.join(order_bits), '|'.join(sorted(smooshed)))
         return cache_key
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

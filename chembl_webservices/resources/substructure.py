@@ -27,7 +27,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class SubstructureResource(MoleculeResource):
 
@@ -35,7 +36,7 @@ class SubstructureResource(MoleculeResource):
         queryset = MoleculeDictionary.objects.all()
         resource_name = 'substructure'
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
 
@@ -53,12 +54,12 @@ class SubstructureResource(MoleculeResource):
             url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx]+)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         return []
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get_list(self, bundle, **kwargs):
         smiles = kwargs.pop('smiles', None)
@@ -73,18 +74,21 @@ class SubstructureResource(MoleculeResource):
                 if chembl_id:
                     mol_filters = {'chembl_id':chembl_id}
                 else:
-                    mol_filters = {'compoundstructures__standard_inchi_key' : std_inchi_key}
-                objects = self.apply_filters(bundle.request, mol_filters).values_list('compoundstructures__canonical_smiles',
-                    flat=True)
+                    mol_filters = {'compoundstructures__standard_inchi_key': std_inchi_key}
+                objects = self.apply_filters(bundle.request, mol_filters).values_list(
+                    'compoundstructures__canonical_smiles', flat=True)
                 stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in mol_filters.items()])
                 length = len(objects)
                 if length <= 0:
                     raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
-                                                               (self._meta.object_class.__name__, stringified_kwargs))
+                                             (self._meta.object_class.__name__, stringified_kwargs))
                 elif length > 1:
                     raise MultipleObjectsReturned("More than '%s' matched '%s'." % (self._meta.object_class.__name__,
                                                                                     stringified_kwargs))
                 smiles = objects[0]
+                if not smiles:
+                    raise ObjectDoesNotExist(
+                        "No chemical structure defined for identifier {0}".format(chembl_id or std_inchi_key))
             except TypeError as e:
                 if e.message.startswith('Related Field has invalid lookup:'):
                     raise BadRequest(e.message)
@@ -99,10 +103,10 @@ class SubstructureResource(MoleculeResource):
         mols = CompoundMols.objects.with_substructure(smiles).defer('molfile').values_list('molecule_id', flat=True)
 
         filters = {
-            'chembl__entity_type':'COMPOUND',
-            'compoundstructures__isnull' : False,
-            'pk__in' : MoleculeHierarchy.objects.all().values_list('parent_molecule_id'),
-            'compoundproperties__isnull' : False,
+            'chembl__entity_type': 'COMPOUND',
+            'compoundstructures__isnull': False,
+            'pk__in': MoleculeHierarchy.objects.all().values_list('parent_molecule_id'),
+            'compoundproperties__isnull': False,
         }
 
         standard_filters, distinct = self.build_filters(filters=kwargs)
@@ -121,7 +125,7 @@ class SubstructureResource(MoleculeResource):
             objects = objects.distinct()
         return self.authorized_read_list(objects, bundle)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_resource_uri(self, bundle_or_obj=None, url_name='dispatch_list'):
         if bundle_or_obj is not None:
@@ -132,17 +136,20 @@ class SubstructureResource(MoleculeResource):
         except NoReverseMatch:
             return ''
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def remove_api_resource_names(self, kwargs):
         return super(MoleculeResource, self).remove_api_resource_names(self.decode_plus(kwargs))
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
         smooshed = []
 
-        smiles = kwargs.get('smiles', None)
+        identifier = kwargs.get('smiles') or kwargs.get('standard_inchi_key') or kwargs.get('chembl_id')
+        if not identifier:
+            raise BadRequest("Structure or identifier required.")
+
         filters, _ = self.build_filters(kwargs)
 
         parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
@@ -161,8 +168,10 @@ class SubstructureResource(MoleculeResource):
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                str(smiles),str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
+                                                 str(identifier), str(limit), str(offset), '|'.join(order_bits),
+                                                 '|'.join(sorted(smooshed)))
         return cache_key
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+

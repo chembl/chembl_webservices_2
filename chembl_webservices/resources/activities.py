@@ -14,7 +14,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ActivityResource(ChemblModelResource):
 
@@ -28,6 +29,7 @@ class ActivityResource(ChemblModelResource):
     target_organism = fields.CharField('assay__target__organism', null=True, blank=True)
     assay_chembl_id = fields.CharField('assay__chembl__chembl_id', null=True, blank=True)
     assay_type = fields.CharField('assay__assay_type__assay_type', null=True, blank=True)
+    src_id = fields.IntegerField('assay__src__src_id', null=True, blank=True)
     assay_description = fields.CharField('assay__description', null=True, blank=True)
     document_year = fields.IntegerField('doc__year', null=True, blank=True)
     document_journal = fields.CharField('doc__journal', null=True, blank=True)
@@ -40,7 +42,7 @@ class ActivityResource(ChemblModelResource):
         collection_name = 'activities'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
         prefetch_related = ['assay', 'assay__chembl', 'assay__target', 'assay__target__chembl', 'assay__assay_type',
-                            'doc', 'doc__chembl',
+                            'assay__src', 'doc', 'doc__chembl',
                             'molecule', 'molecule__chembl', 'molecule__compoundstructures',
                             'data_validity_comment',
                             'record']
@@ -50,6 +52,7 @@ class ActivityResource(ChemblModelResource):
             'assay_chembl_id',
             'assay_description',
             'assay_type',
+            'src_id',
             'bao_endpoint',
             'bao_format'
             'canonical_smiles',
@@ -76,36 +79,37 @@ class ActivityResource(ChemblModelResource):
             'uo_units',
         )
         filtering = {
-            'activity_comment' : CHAR_FILTERS,
-            'activity_id' : NUMBER_FILTERS,
-            'assay_chembl_id' : ALL,
-            'assay_description' : CHAR_FILTERS,
-            'assay_type' : CHAR_FILTERS,
-            'bao_endpoint' : ALL,
-            'target_chembl_id' : CHAR_FILTERS,
-            'canonical_smiles' : FLAG_FILTERS,
-            'data_validity_comment' : ALL,
-            'document_chembl_id' : ALL,
+            'activity_comment': CHAR_FILTERS,
+            'activity_id': NUMBER_FILTERS,
+            'assay_chembl_id': ALL,
+            'assay_description': CHAR_FILTERS,
+            'assay_type': CHAR_FILTERS,
+            'bao_endpoint': ALL,
+            'target_chembl_id': CHAR_FILTERS,
+            'canonical_smiles': FLAG_FILTERS,
+            'data_validity_comment': ALL,
+            'document_chembl_id': ALL,
             'document_journal': CHAR_FILTERS,
-            'document_year' : NUMBER_FILTERS,
-            'molecule_chembl_id' : ALL,
+            'document_year': NUMBER_FILTERS,
+            'molecule_chembl_id': ALL,
             'pchembl_value': NUMBER_FILTERS,
-            'potential_duplicate' : FLAG_FILTERS,
-            'published_relation' : CHAR_FILTERS,
+            'potential_duplicate': FLAG_FILTERS,
+            'published_relation': CHAR_FILTERS,
             'published_type': CHAR_FILTERS,
-            'published_units' : CHAR_FILTERS,
-            'published_value' : NUMBER_FILTERS,
-            'qudt_units' : CHAR_FILTERS,
-            'record_id' : NUMBER_FILTERS,
+            'published_units': CHAR_FILTERS,
+            'published_value': NUMBER_FILTERS,
+            'qudt_units': CHAR_FILTERS,
+            'record_id': NUMBER_FILTERS,
             'standard_flag': FLAG_FILTERS,
-            'standard_relation' : CHAR_FILTERS,
-            'standard_type' : CHAR_FILTERS,
-            'standard_units' : CHAR_FILTERS,
-            'standard_value' : NUMBER_FILTERS,
-            'target_pref_name' : CHAR_FILTERS,
-            'target_organism' : CHAR_FILTERS,
-            'uo_units' : CHAR_FILTERS,
+            'standard_relation': CHAR_FILTERS,
+            'standard_type': CHAR_FILTERS,
+            'standard_units': CHAR_FILTERS,
+            'standard_value': NUMBER_FILTERS,
+            'target_pref_name': CHAR_FILTERS,
+            'target_organism': CHAR_FILTERS,
+            'uo_units': CHAR_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or 'canonical_smiles' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or
+                                                                'canonical_smiles' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

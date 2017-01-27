@@ -308,3 +308,13 @@ def highlight_substructure_indigo(molstring, smarts):
     return match.highlightedTarget()
 
 # ----------------------------------------------------------------------------------------------------------------------
+
+
+def represents_int(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+# ----------------------------------------------------------------------------------------------------------------------

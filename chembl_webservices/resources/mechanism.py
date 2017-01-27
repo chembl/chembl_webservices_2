@@ -53,6 +53,7 @@ class MechanismResource(ChemblModelResource):
 
     record_id = fields.IntegerField('record__record_id', null=True, blank=True)
     molecule_chembl_id = fields.CharField('molecule__chembl__chembl_id', null=True, blank=True)
+    max_phase = fields.IntegerField('molecule__max_phase', null=True, blank=True)
     target_chembl_id = fields.CharField('target__chembl__chembl_id', null=True, blank=True)
     site_id = fields.IntegerField('site__site_id', null=True, blank=True)
     action_type = fields.CharField('action_type__action_type', null=True, blank=True)
@@ -75,6 +76,7 @@ class MechanismResource(ChemblModelResource):
             'binding_site_comment',
             'direct_interaction',
             'disease_efficacy',
+            'max_phase',
             'mec_id',
             'mechanism_comment',
             'mechanism_of_action',
@@ -91,6 +93,7 @@ class MechanismResource(ChemblModelResource):
 #            'binding_site_comment' : ALL,
             'direct_interaction' : FLAG_FILTERS,
             'disease_efficacy' : FLAG_FILTERS,
+            'max_phase': NUMBER_FILTERS,
             'mec_id' : NUMBER_FILTERS,
 #            'mechanism_comment' : ALL,
             'mechanism_of_action' : CHAR_FILTERS,

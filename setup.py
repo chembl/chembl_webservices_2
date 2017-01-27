@@ -17,7 +17,7 @@ if sys.version_info < (2, 7, 3) or sys.version_info >= (3, 0, 0):
 
 setup(
     name='chembl-webservices',
-    version='2.5.5',
+    version='2.5.7',
     author='Michal Nowotka',
     author_email='mnowotka@ebi.ac.uk',
     description='Python package providing chembl web services API.',
