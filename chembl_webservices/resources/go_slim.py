@@ -14,7 +14,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class GoSlimResource(ChemblModelResource):
 
@@ -24,7 +25,7 @@ class GoSlimResource(ChemblModelResource):
         resource_name = 'go_slim'
         collection_name = 'go_slims'
         detail_uri_name = 'go_id'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         prefetch_related = []
 
         fields = (
@@ -37,17 +38,17 @@ class GoSlimResource(ChemblModelResource):
         )
 
         filtering = {
-            'go_id' : NUMBER_FILTERS,
-            'parent_go_id' : NUMBER_FILTERS,
-            'pref_name' : CHAR_FILTERS,
-            'class_level' : NUMBER_FILTERS,
-            'aspect' : CHAR_FILTERS,
-            'path' : NUMBER_FILTERS,
+            'go_id': NUMBER_FILTERS,
+            'parent_go_id': NUMBER_FILTERS,
+            'pref_name': CHAR_FILTERS,
+            'class_level': NUMBER_FILTERS,
+            'aspect': CHAR_FILTERS,
+            'path': NUMBER_FILTERS,
         }
 
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
 
@@ -63,10 +64,10 @@ class GoSlimResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>[Gg][Oo]:\d+)%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         return []
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 

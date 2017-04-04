@@ -6,6 +6,7 @@ from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
+
 try:
     from chembl_compatibility.models import BindingSites
 except ImportError:
@@ -22,7 +23,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ComponentDomainsResource(ChemblModelResource):
 
@@ -30,27 +32,29 @@ class ComponentDomainsResource(ChemblModelResource):
         queryset = Domains.objects.all()
         resource_name = 'domain'
         collection_name = 'domains'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class SiteComponentsResource(ChemblModelResource):
 
     domain = fields.ForeignKey('chembl_webservices.resources.binding_site.ComponentDomainsResource',
-        'domain', full=True, null=True, blank=True)
+                               'domain', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = SiteComponents.objects.all()
         resource_name = 'site_component'
         collection_name = 'site_components'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class BindingSiteResource(ChemblModelResource):
 
     site_components = fields.ManyToManyField('chembl_webservices.resources.binding_site.SiteComponentsResource',
-        'sitecomponents_set', full=True, null=True, blank=True)
+                                             'sitecomponents_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         prefetch_related = ['sitecomponents_set', 'sitecomponents_set__domain']
@@ -58,11 +62,11 @@ class BindingSiteResource(ChemblModelResource):
         resource_name = 'binding_site'
         collection_name = 'binding_sites'
         serializer = ChEMBLApiSerializer(resource_name,
-            {collection_name : resource_name, 'site_components':'site_component'})
+                                         {collection_name: resource_name, 'site_components': 'site_component'})
         filtering = {
-            'site_id' : NUMBER_FILTERS,
-            'site_name' : CHAR_FILTERS,
+            'site_id': NUMBER_FILTERS,
+            'site_name': CHAR_FILTERS,
         }
         ordering = filtering.keys()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

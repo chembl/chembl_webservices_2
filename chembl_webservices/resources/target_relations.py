@@ -8,44 +8,57 @@ from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Prefetch
 
 try:
     from chembl_compatibility.models import TargetRelations
 except ImportError:
     from chembl_core_model.models import TargetRelations
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
+try:
+    from chembl_compatibility.models import TargetDictionary
+except ImportError:
+    from chembl_core_model.models import TargetDictionary
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class TargetRelationsResource(ChemblModelResource):
 
-    target_chembl_id = fields.CharField('target__chembl__chembl_id')
-    related_target_chembl_id = fields.CharField('related_target__chembl__chembl_id')
+    target_chembl_id = fields.CharField('target__chembl_id')
+    related_target_chembl_id = fields.CharField('related_target__chembl_id')
 
     class Meta(ChemblResourceMeta):
         queryset = TargetRelations.objects.all()
         excludes = ['targrel_id']
         resource_name = 'target_relation'
         collection_name = 'target_relations'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         detail_uri_name = 'target__chembl_id'
-        prefetch_related = ['target', 'target__chembl', 'related_target', 'related_target__chembl']
+        prefetch_related = [
+            Prefetch('target', queryset=TargetDictionary.objects.only('chembl')),
+            Prefetch('related_target', queryset=TargetDictionary.objects.only('chembl')),
+        ]
 
         fields = (
             'relationship',
         )
 
         filtering = {
-            'target_chembl_id' : NUMBER_FILTERS,
-            'related_target_chembl_id' : CHAR_FILTERS,
+            'target_chembl_id': NUMBER_FILTERS,
+            'related_target_chembl_id': CHAR_FILTERS,
             'relationship': CHAR_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or 'canonical_smiles' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or
+                                                                'description' in field or 'canonical_smiles' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
-
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail_impl(self, request, basic_bundle, **kwargs):
         """
@@ -59,7 +72,7 @@ class TargetRelationsResource(ChemblModelResource):
 
         try:
             obj, in_cache = self.cached_obj_get_list(bundle=basic_bundle, **self.remove_api_resource_names(kwargs))
-            objects = obj.get('target_relations',[])
+            objects = obj.get('target_relations', [])
         except ObjectDoesNotExist:
             return http.HttpNotFound()
 
@@ -81,4 +94,4 @@ class TargetRelationsResource(ChemblModelResource):
 
             return obj, in_cache
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

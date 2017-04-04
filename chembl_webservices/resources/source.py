@@ -12,7 +12,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class SourceResource(ChemblModelResource):
 
@@ -20,12 +21,12 @@ class SourceResource(ChemblModelResource):
         queryset = Source.objects.all()
         resource_name = 'source'
         collection_name = 'sources'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         filtering = {
-            'src_description' : CHAR_FILTERS,
-            'src_id' : NUMBER_FILTERS,
+            'src_description': CHAR_FILTERS,
+            'src_id': NUMBER_FILTERS,
             'src_short_name': CHAR_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

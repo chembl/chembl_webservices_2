@@ -2,7 +2,7 @@ __author__ = 'mnowotka'
 
 from tastypie.paginator import Paginator
 from tastypie.paginator import urlencode
-from tastypie.paginator import six
+from django.db.models.query import QuerySet
 
 #-----------------------------------------------------------------------------------------------------------------------
 
@@ -56,6 +56,22 @@ class ChEMBLPaginator(Paginator):
         self.method = method
 
 #-----------------------------------------------------------------------------------------------------------------------
+
+    def get_slice(self, limit, offset):
+        typ = type(self.objects)
+        if limit == 0:
+            if typ == QuerySet:
+                pks = list(self.objects.only('pk')[offset:].values_list('pk', flat=True).iterator())
+            else:
+                return self.objects[offset:]
+        else:
+            if typ == QuerySet:
+                pks = list(self.objects.only('pk')[offset:offset + limit].values_list('pk', flat=True).iterator())
+            else:
+                return self.objects[offset:offset + limit]
+        return self.objects.filter(pk__in=pks)
+
+# -----------------------------------------------------------------------------------------------------------------------
 
     def _generate_uri(self, limit, offset):
         if self.resource_uri is None:

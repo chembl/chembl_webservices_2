@@ -262,7 +262,7 @@ You can specify optional parameters:
                 img = base64.b64encode(img)
         else:
             return self.answerBadRequest(request, "Unsupported format %s" % frmt)
-        response = HttpResponse(mimetype=mimetype)
+        response = HttpResponse(content_type=mimetype)
         response.write(img)
         return response
 

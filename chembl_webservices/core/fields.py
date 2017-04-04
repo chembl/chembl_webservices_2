@@ -1,7 +1,9 @@
 from tastypie.exceptions import ApiFieldError
 from tastypie.fields import ApiField, NOT_PROVIDED
+from django.utils import six
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 def dehydrate(self, bundle, for_list=True):
     """
@@ -10,10 +12,9 @@ def dehydrate(self, bundle, for_list=True):
     """
     if self.attribute is not None:
         # Check for `__` in the field for looking through the relation.
-        attrs = self.attribute.split('__')
         current_object = bundle.obj
 
-        for attr in attrs:
+        for attr in self._attrs:
             previous_object = current_object
             try:
                 current_object = getattr(current_object, attr, None)
@@ -44,9 +45,11 @@ def dehydrate(self, bundle, for_list=True):
     else:
         return None
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
-def __init__(self, attribute=None, default=NOT_PROVIDED, null=False, blank=False, readonly=False, unique=False, help_text=None, use_in='all'):
+
+def __init__(self, attribute=None, default=NOT_PROVIDED, null=False, blank=False, readonly=False, unique=False,
+             help_text=None, use_in='all', verbose_name=None):
         """
         Sets up the field. This is generally called when the containing
         ``Resource`` is initialized.
@@ -89,6 +92,8 @@ def __init__(self, attribute=None, default=NOT_PROVIDED, null=False, blank=False
         self.instance_name = None
         self._resource = None
         self.attribute = attribute
+        # Check for `__` in the field for looking through the relation.
+        self._attrs = attribute.split('__') if attribute is not None and isinstance(attribute, six.string_types) else []
         self._default = default
         self.null = null
         self.blank = blank
@@ -100,13 +105,16 @@ def __init__(self, attribute=None, default=NOT_PROVIDED, null=False, blank=False
         if use_in in ['all', 'detail', 'list', 'search'] or callable(use_in):
             self.use_in = use_in
 
+        self.verbose_name = verbose_name
+
         if help_text:
             self.help_text = help_text
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 def monkeypatch_tastypie_field():
     ApiField.dehydrate = dehydrate
     ApiField.__init__ = __init__
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

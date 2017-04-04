@@ -117,6 +117,7 @@ class SimilarityResource(MoleculeResource):
 
         similar = CompoundMols.objects.similar_to(smiles, similarity).values_list('molecule_id', 'similarity')
 
+        similarity_map = None
         try:
             similarity_map = OrderedDict(sorted(similar, key=lambda x: x[1]))
         except DatabaseError as e:
@@ -169,13 +170,13 @@ class SimilarityResource(MoleculeResource):
 
             Should return a HttpResponse (200 OK).
             """
-
             request = bundle.request
 
+            if not kwargs.get('similarity'):
+                raise BadRequest("Similarity parameter is required.")
+            original_similarity = kwargs['similarity']
+
             try:
-                if not kwargs.get('similarity'):
-                    raise BadRequest("Similarity parameter is required.")
-                original_similarity = kwargs['similarity']
                 kwargs['similarity'] = int(re.search(r'^\d+', kwargs.get('similarity', "0")).group())
                 similarity = kwargs.get('similarity', 0)
                 if similarity < 70 or similarity > 100:

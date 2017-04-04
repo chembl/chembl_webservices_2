@@ -18,7 +18,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class AtcResource(ChemblModelResource):
 
@@ -26,19 +27,23 @@ class AtcResource(ChemblModelResource):
         queryset = AtcClassification.objects.all()
         resource_name = 'atc_class'
         collection_name = 'atc'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         filtering = {
-            'level1' : CHAR_FILTERS,
-            'level2' : CHAR_FILTERS,
-            'level3' : CHAR_FILTERS,
-            'level4' : CHAR_FILTERS,
-            'level5' : CHAR_FILTERS,
-            'who_id' : CHAR_FILTERS,
-            'who_name' : CHAR_FILTERS,
+            'level1': CHAR_FILTERS,
+            'level1_description': CHAR_FILTERS,
+            'level2': CHAR_FILTERS,
+            'level2_description': CHAR_FILTERS,
+            'level3': CHAR_FILTERS,
+            'level3_description': CHAR_FILTERS,
+            'level4': CHAR_FILTERS,
+            'level4_description': CHAR_FILTERS,
+            'level5': CHAR_FILTERS,
+            'who_id': CHAR_FILTERS,
+            'who_name': CHAR_FILTERS,
         }
         ordering = filtering.keys()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_level(self, pk):
         length = len(pk)
@@ -54,7 +59,7 @@ class AtcResource(ChemblModelResource):
             return "level4"
         raise ImmediateHttpResponse(response=http.HttpNotFound())
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get_list(self, bundle, **kwargs):
         """
@@ -79,7 +84,7 @@ class AtcResource(ChemblModelResource):
                 objects = objects.distinct()
             if objects.count() <= 0:
                 raise ObjectDoesNotExist("Couldn't find an instance of '%s' which matched '%s'." %
-                                                           (self._meta.object_class.__name__, stringified_kwargs))
+                                         (self._meta.object_class.__name__, stringified_kwargs))
             return self.authorized_read_list(objects, bundle)
         except TypeError as e:
             if e.message.startswith('Related Field has invalid lookup:'):
@@ -89,7 +94,7 @@ class AtcResource(ChemblModelResource):
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail_impl(self, request, basic_bundle, **kwargs):
         """
@@ -103,7 +108,7 @@ class AtcResource(ChemblModelResource):
 
         try:
             obj, in_cache = self.cached_obj_get_list(bundle=basic_bundle, **self.remove_api_resource_names(kwargs))
-            objects = obj.get('atc',[])
+            objects = obj.get('atc', [])
         except ObjectDoesNotExist:
             return http.HttpNotFound()
 
@@ -125,4 +130,4 @@ class AtcResource(ChemblModelResource):
 
             return obj, in_cache
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

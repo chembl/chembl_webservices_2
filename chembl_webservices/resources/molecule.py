@@ -14,8 +14,13 @@ from tastypie.exceptions import Unauthorized
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from tastypie.utils import dict_strip_unicode_keys
+from django.db.models import Prefetch
 
 from chembl_core_model.models import CompoundMols
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
 try:
     from chembl_compatibility.models import MoleculeDictionary
 except ImportError:
@@ -40,6 +45,8 @@ except ImportError:
 try:
     from haystack.query import SearchQuerySet
     sqs = SearchQuerySet()
+    from haystack.inputs import AutoQuery
+    from haystack.query import SQ
 except:
     sqs = None
 
@@ -67,7 +74,7 @@ class MoleculeSerializer(ChEMBLApiSerializer):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def to_mol(self, data, options=None):
+    def to_sdf(self, data, options=None):
         ret = data.compoundstructures.molfile.rstrip() + '\n'
         if not options or 'no_chembl_id' in options:
             ret += '> <chembl_id>\n{0}\n\n'.format(data.chembl_id)
@@ -77,14 +84,14 @@ class MoleculeSerializer(ChEMBLApiSerializer):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def to_sdf(self, data, options=None):
+    def to_mol(self, data, options=None):
         if not isinstance(data, dict):
-            return self.to_mol(data.obj, options)
+            return self.to_sdf(data.obj, options)
         ret = ''
         if 'molecules' in data:
             for bundle in data['molecules']:
                 try:
-                    ret += (self.to_mol(bundle.obj) + '$$$$\n')
+                    ret += (self.to_sdf(bundle.obj) + '$$$$\n')
                 except:
                     continue
         return ret
@@ -94,8 +101,8 @@ class MoleculeSerializer(ChEMBLApiSerializer):
 
 class MoleculeHierarchyResource(ChemblModelResource):
 
-    molecule_chembl_id = fields.CharField('molecule__chembl__chembl_id')
-    parent_chembl_id = fields.CharField('parent_molecule__chembl__chembl_id', null=True, blank=True)
+    molecule_chembl_id = fields.CharField('molecule__chembl_id')
+    parent_chembl_id = fields.CharField('parent_molecule__chembl_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = MoleculeHierarchy.objects.all()
@@ -104,9 +111,14 @@ class MoleculeHierarchyResource(ChemblModelResource):
             'molecule_chembl_id': ALL,
             'parent_chembl_id': ALL,
         }
+        prefetch_related = [
+            Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl')),
+            Prefetch('parent_molecule', queryset=MoleculeDictionary.objects.only('chembl')),
+        ]
         ordering = filtering.keys()
 
 # ----------------------------------------------------------------------------------------------------------------------
+
 
 class MoleculeSynonymsResource(ChemblModelResource):
 
@@ -115,7 +127,7 @@ class MoleculeSynonymsResource(ChemblModelResource):
         excludes = ['molsyn_id']
         resource_name = 'synonym'
         collection_name = 'molecule_synonyms'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -127,7 +139,7 @@ class MoleculeStructuresResource(ChemblModelResource):
         excludes = ['molfile']
         resource_name = 'molecule_structures'
         collection_name = 'molecule_structures'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
         fields = (
             'standard_inchi',
@@ -149,7 +161,7 @@ class MoleculePropertiesResource(ChemblModelResource):
         queryset = CompoundProperties.objects.all()
         resource_name = 'molecule_properties'
         collection_name = 'molecule_properties'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
         fields = (
             'acd_logd',
@@ -211,7 +223,7 @@ class MoleculePropertiesResource(ChemblModelResource):
 
 class MoleculeResource(ChemblModelResource):
 
-    molecule_chembl_id = fields.CharField('chembl__chembl_id')
+    molecule_chembl_id = fields.CharField('chembl_id')
     molecule_properties = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculePropertiesResource',
                                             'compoundproperties', full=True, null=True, blank=True)
     molecule_hierarchy = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculeHierarchyResource',
@@ -249,13 +261,20 @@ will match two molecules with:
 _SMILES_.
         '''}
         serializer = MoleculeSerializer(resource_name,
-            {collection_name: resource_name, 'biocomponents': 'biocomponent', 'molecule_synonyms': 'synonym',
-             'atc_classifications': 'level5'})
+                                        {collection_name: resource_name, 'biocomponents': 'biocomponent',
+                                         'molecule_synonyms': 'synonym', 'atc_classifications': 'level5'})
         detail_uri_name = 'chembl_id'
-        prefetch_related = ['moleculesynonyms_set', 'atcclassification_set', 'chembl',
-                            'biotherapeutics__bio_component_sequences', 'compoundproperties', 'moleculehierarchy',
-                            'compoundstructures', 'moleculehierarchy__parent_molecule',
-                            'moleculehierarchy__parent_molecule__chembl']
+
+        prefetch_related = [
+            Prefetch('moleculesynonyms_set'),
+            Prefetch('atcclassification_set'),
+            Prefetch('biotherapeutics__bio_component_sequences'),
+            Prefetch('compoundproperties'),
+            Prefetch('moleculehierarchy'),
+            Prefetch('compoundstructures'),
+            Prefetch('moleculehierarchy__parent_molecule', queryset=MoleculeDictionary.objects.only('chembl')),
+        ]
+
         fields = (
             'atc_classifications',
             'availability_type',
@@ -501,7 +520,7 @@ _SMILES_.
             field_name = filter_bits.pop(0)
             filter_type = 'exact'
 
-            if not field_name in self.fields:
+            if field_name not in self.fields:
                 if filter_expr == 'pk' or filter_expr == self._meta.detail_uri_name:
                     qs_filters[filter_expr] = value
                 continue
@@ -556,32 +575,27 @@ _SMILES_.
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
         cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                str(limit), str(offset), str(query), '|'.join(order_bits), '|'.join(sorted(smooshed)))
+                                                 str(limit),
+                                                 str(offset),
+                                                 str(query),
+                                                 '|'.join(order_bits),
+                                                 '|'.join(sorted(smooshed)))
         return cache_key
 
 # ----------------------------------------------------------------------------------------------------------------------
 
     def get_search_results(self, user_query):
-
-        res = dict()
+        res = []
 
         try:
-
             queryset = self._meta.queryset
             model = queryset.model
-
-            res = dict(sqs.models(model).load_all().auto_query(user_query).values_list('pk', 'score'))
-            synonyms = sqs.models(MoleculeSynonyms).load_all().auto_query(user_query)
-            for synonym in synonyms:
-                key = str(synonym.object.molecule.pk)
-                if key in res:
-                    res[key] = max(res[key], synonym.score)
-                else:
-                    res[key] = synonym.score
-
+            res = sqs.models(model).load_all().filter(SQ(content=AutoQuery(user_query))
+                                                      | SQ(synonyms=AutoQuery(user_query))
+                                                      | SQ(compound_keys=AutoQuery(user_query))
+                                                      | SQ(record_names=AutoQuery(user_query))).order_by('-score')
         except Exception as e:
-            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
-
+            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query, })
         return res
 
 # ----------------------------------------------------------------------------------------------------------------------

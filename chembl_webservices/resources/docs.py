@@ -7,29 +7,37 @@ from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FIL
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from django.db.models import Prefetch
+
 try:
     from chembl_compatibility.models import Docs
 except ImportError:
     from chembl_core_model.models import Docs
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class DocsResource(ChemblModelResource):
 
-    document_chembl_id = fields.CharField('chembl__chembl_id', null=True, blank=True)
+    document_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Docs.objects.all()
+        haystack_queryset = Docs.objects.all().defer('abstract')
         excludes = ['doc_id']
         resource_name = 'document'
         collection_name = 'documents'
         detail_uri_name = 'chembl_id'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['chembl']
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        prefetch_related = []
 
         fields = (
             'abstract',
@@ -45,26 +53,28 @@ class DocsResource(ChemblModelResource):
             'title',
             'volume',
             'year',
+            'patent_id',
         )
 
         filtering = {
-            'abstract' : CHAR_FILTERS,
-            'authors' : CHAR_FILTERS,
-            'doc_type' : CHAR_FILTERS,
-            'document_chembl_id' : NUMBER_FILTERS,
+            'abstract': CHAR_FILTERS,
+            'authors': CHAR_FILTERS,
+            'doc_type': CHAR_FILTERS,
+            'document_chembl_id': NUMBER_FILTERS,
             'doi': CHAR_FILTERS,
             'first_page': CHAR_FILTERS,
-            'issue' : CHAR_FILTERS,
-            'journal' : CHAR_FILTERS,
-            'last_page' : CHAR_FILTERS,
-            'pubmed_id' : NUMBER_FILTERS,
-            'title' : CHAR_FILTERS,
-            'volume' : CHAR_FILTERS,
-            'year' : NUMBER_FILTERS,
+            'issue': CHAR_FILTERS,
+            'journal': CHAR_FILTERS,
+            'last_page': CHAR_FILTERS,
+            'pubmed_id': NUMBER_FILTERS,
+            'title': CHAR_FILTERS,
+            'volume': CHAR_FILTERS,
+            'year': NUMBER_FILTERS,
+            'patent_id': CHAR_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         """
@@ -81,5 +91,6 @@ class DocsResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 

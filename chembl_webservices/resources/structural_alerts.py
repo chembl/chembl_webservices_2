@@ -20,12 +20,20 @@ from chembl_webservices.core.utils import highlight_substructure_indigo
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
 from tastypie.exceptions import ImmediateHttpResponse
+from django.db.models import Prefetch
 
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
 try:
     from chembl_compatibility.models import CompoundStructuralAlerts
 except ImportError:
     from chembl_core_model.models import CompoundStructuralAlerts
-
+try:
+    from chembl_compatibility.models import MoleculeDictionary
+except ImportError:
+    from chembl_core_model.models import MoleculeDictionary
 try:
     from chembl_compatibility.models import StructuralAlerts
 except ImportError:
@@ -53,7 +61,7 @@ class StructuralAlertSetsResource(ChemblModelResource):
         queryset = StructuralAlertSets.objects.all()
         resource_name = 'structural_alert_set'
         collection_name = 'structural_alert_sets'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
         fields = (
             'set_name',
@@ -80,7 +88,7 @@ class StructuralAlertsResource(ChemblModelResource):
         resource_name = 'structural_alert'
         collection_name = 'structural_alerts'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
-        prefetch_related = ['alertset']
+        prefetch_related = [Prefetch('alertset')]
 
         fields = (
             'alert_id',
@@ -128,8 +136,12 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
         queryset = CompoundStructuralAlerts.objects.all()
         resource_name = 'compound_structural_alert'
         collection_name = 'compound_structural_alerts'
-        serializer = ImageAwareSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['alert', 'molecule', 'molecule__chembl']
+        serializer = ImageAwareSerializer(resource_name, {collection_name: resource_name})
+        prefetch_related = [
+            Prefetch('alert'),
+            Prefetch('alert__alertset'),
+            Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl')),
+        ]
         fields = (
         )
         filtering = {
@@ -190,6 +202,8 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
 
     def render_image(self, obj, request, **kwargs):
         frmt = getattr(request, 'format', self._meta.default_format)
+        img = None
+        mimetype = None
         try:
             size = int(kwargs.get("dimensions", 500))
         except ValueError:
@@ -221,7 +235,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
             if engine not in SUPPORTED_ENGINES:
                 return self.answerBadRequest(request, "Unsupported engine %s" % engine)
             img, mimetype = self.render_svg(obj, size, engine, ignoreCoords)
-        response = HttpResponse(mimetype=mimetype)
+        response = HttpResponse(content_type=mimetype)
         response.write(img)
         return response
 

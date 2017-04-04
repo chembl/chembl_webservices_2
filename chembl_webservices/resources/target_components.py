@@ -6,6 +6,16 @@ from chembl_webservices.core.utils import FLAG_FILTERS
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.meta import ChemblResourceMeta
+from django.db.models import Prefetch
+
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
+try:
+    from chembl_compatibility.models import ComponentSynonyms
+except ImportError:
+    from chembl_core_model.models import ComponentSynonyms
 try:
     from chembl_compatibility.models import TargetComponents
 except ImportError:
@@ -33,7 +43,8 @@ monkeypatch_tastypie_field()
 
 available_fields = [f.name for f in TargetDictionary._meta.fields]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ProteinClassificationResource(ChemblModelResource):
 
@@ -43,19 +54,20 @@ class ProteinClassificationResource(ChemblModelResource):
         queryset = ProteinClassification.objects.all()
         resource_name = 'protein_classification'
         collection_name = 'protein_classifications'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
         fields = ('protein_classification_id',)
 
         filtering = {
-            'protein_classification_id' : FLAG_FILTERS,
+            'protein_classification_id': FLAG_FILTERS,
         }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class TargetDictionaryResource(ChemblModelResource):
 
-    target_chembl_id = fields.CharField('chembl__chembl_id')
+    target_chembl_id = fields.CharField('chembl_id')
 
     class Meta(ChemblResourceMeta):
         queryset = TargetDictionary.objects.all() if 'downgraded' not in available_fields else \
@@ -66,10 +78,11 @@ class TargetDictionaryResource(ChemblModelResource):
         )
 
         filtering = {
-            'target_chembl_id' : ALL,
+            'target_chembl_id': ALL,
         }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class GoSlimResource(ChemblModelResource):
 
@@ -81,10 +94,11 @@ class GoSlimResource(ChemblModelResource):
         )
 
         filtering = {
-            'go_id' : ALL,
+            'go_id': ALL,
         }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class TargetComponentsResource(ChemblModelResource):
 
@@ -92,7 +106,7 @@ class TargetComponentsResource(ChemblModelResource):
         'chembl_webservices.resources.target_components.ProteinClassificationResource',
         'proteinclassification_set', full=True, null=True, blank=True)
     target_component_synonyms = fields.ToManyField('chembl_webservices.resources.target.TargetComponentSynonyms',
-        'componentsynonyms_set', full=True, null=True, blank=True)
+                                                   'componentsynonyms_set', full=True, null=True, blank=True)
     targets = fields.ToManyField(
         'chembl_webservices.resources.target_components.TargetDictionaryResource',
         'targetdictionary_set', full=True, null=True, blank=True)
@@ -100,18 +114,24 @@ class TargetComponentsResource(ChemblModelResource):
         'chembl_webservices.resources.target_components.GoSlimResource',
         'componentgo_set', full=True, null=True, blank=True)
 
-
     class Meta(ChemblResourceMeta):
-        queryset = ComponentSequences.objects.defer('sequence')
+        queryset = ComponentSequences.objects.all()
         excludes = ['db_source', 'db_version', 'sequence_md5sum']
         resource_name = 'target_component'
         collection_name = 'target_components'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name,
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name,
                                                          'target_component_synonyms': 'target_component_synonym',
                                                          'protein_classifications': 'protein_classification',
-                                                         'targets':'target'})
-        prefetch_related = ['proteinclassification_set', 'componentsynonyms_set', 'targetdictionary_set',
-                            'componentgo_set', 'targetdictionary_set__chembl']
+                                                         'targets': 'target'})
+        prefetch_related = [
+            Prefetch('proteinclassification_set',
+                     queryset=ProteinClassification.objects.only('protein_class_id')),
+            Prefetch('componentsynonyms_set',
+                     queryset=ComponentSynonyms.objects.only('component_synonym', 'syn_type', 'compsyn_id', 'component')),
+            Prefetch('targetdictionary_set',
+                     queryset=TargetDictionary.objects.only('chembl_id')),
+            Prefetch('componentgo_set'),
+        ]
 
         fields = (
             'accession',
@@ -125,15 +145,15 @@ class TargetComponentsResource(ChemblModelResource):
         )
 
         filtering = {
-            'accession' : ALL,
-            'component_id' : ALL,
-            'component_type' : ALL,
-            'description' : ALL,
-            'organism' : ALL,
+            'accession': ALL,
+            'component_id': ALL,
+            'component_type': ALL,
+            'description': ALL,
+            'organism': ALL,
             'tax_id': ALL,
             'protein_classifications': ALL_WITH_RELATIONS,
         }
 
         ordering = filtering.keys()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

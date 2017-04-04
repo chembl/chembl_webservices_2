@@ -14,7 +14,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ProteinClassResource(ChemblModelResource):
 
@@ -22,22 +23,22 @@ class ProteinClassResource(ChemblModelResource):
         queryset = ProteinFamilyClassification.objects.all()
         excludes = ['protein_class_desc']
         filtering = {
-                     'l1' : CHAR_FILTERS,
-                     'l2' : CHAR_FILTERS,
-                     'l3' : CHAR_FILTERS,
-                     'l4' : CHAR_FILTERS,
-                     'l5' : CHAR_FILTERS,
-                     'l6' : CHAR_FILTERS,
-                     'l7' : CHAR_FILTERS,
-                     'l8' : CHAR_FILTERS,
+                     'l1': CHAR_FILTERS,
+                     'l2': CHAR_FILTERS,
+                     'l3': CHAR_FILTERS,
+                     'l4': CHAR_FILTERS,
+                     'l5': CHAR_FILTERS,
+                     'l6': CHAR_FILTERS,
+                     'l7': CHAR_FILTERS,
+                     'l8': CHAR_FILTERS,
                      'protein_class_id': NUMBER_FILTERS
         }
         ordering = filtering.keys()
         resource_name = 'protein_class'
         collection_name = 'protein_classes'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
         """
@@ -59,7 +60,7 @@ class ProteinClassResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<l1>\w[\w ]*)/(?P<l2>\w[\w ]*)/(?P<l3>\w[\w ]*)/(?P<l4>\w[\w ]*)/(?P<l5>\w[\w ]*)/(?P<l6>\w[\w ]*)/(?P<l7>\w[\w ]*)/(?P<l8>\w[\w ]*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_list'), name="api_dispatch_list"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         """
@@ -82,4 +83,4 @@ class ProteinClassResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<l1>\w[\w ]*)/(?P<l2>\w[\w ]*)/(?P<l3>\w[\w ]*)/(?P<l4>\w[\w ]*)/(?P<l5>\w[\w ]*)/(?P<l6>\w[\w ]*)/(?P<l7>\w[\w ]*)/(?P<l8>\w[\w ]*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_list"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

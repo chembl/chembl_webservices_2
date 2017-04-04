@@ -15,7 +15,13 @@ from django.db.models import Q
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from django.db.models import Prefetch
 from chembl_webservices.core.resource import WS_DEBUG
+
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
 try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:
@@ -28,7 +34,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class MoleculeFormsResource(ChemblModelResource):
 
@@ -38,16 +45,21 @@ class MoleculeFormsResource(ChemblModelResource):
     class Meta(ChemblResourceMeta):
         queryset = MoleculeHierarchy.objects.all()
         filtering = {
-            'molecule_chembl_id' : CHAR_FILTERS,
-            'parent_chembl_id' : CHAR_FILTERS,
+            'molecule_chembl_id': CHAR_FILTERS,
+            'parent_chembl_id': CHAR_FILTERS,
         }
-        prefetch_related = ['molecule', 'parent_molecule']
+
+        prefetch_related = [
+            Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl_id')),
+            Prefetch('parent_molecule', queryset=MoleculeDictionary.objects.only('chembl_id')),
+        ]
+
         resource_name = 'molecule_form'
         collection_name = 'molecule_forms'
         detail_uri_name = 'molecule__chembl_id'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def alter_list_data_to_serialize(self, request, data):
         """
@@ -64,7 +76,7 @@ class MoleculeFormsResource(ChemblModelResource):
             bundles[idx] = self.alter_detail_data_to_serialize(request, bundle)
         return data
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def alter_detail_data_to_serialize(self, request, bundle):
         """
@@ -82,7 +94,7 @@ class MoleculeFormsResource(ChemblModelResource):
             datas['is_parent'] = "False"
         return bundle
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get_list(self, bundle, **kwargs):
         """
@@ -93,8 +105,6 @@ class MoleculeFormsResource(ChemblModelResource):
         """
         filters = {}
         filters.update(kwargs)
-
-        stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in kwargs.items()])
 
         detail_uri_name = self._meta.detail_uri_name
 
@@ -115,25 +125,25 @@ class MoleculeFormsResource(ChemblModelResource):
 
             try:
                 hierarchy = mol.moleculehierarchy
-                has_parent, parent_chemblID = (hierarchy.parent_molecule, hierarchy.parent_molecule_id)
+                has_parent, parent_chembl_id = (hierarchy.parent_molecule, hierarchy.parent_molecule_id)
             except ObjectDoesNotExist:
                 has_parent = False
 
             if has_parent:
                 parent = has_parent
             else:
-                parent, parent_chemblID = (mol, mol.pk)
-            forms.add(parent_chemblID)
+                parent, parent_chembl_id = (mol, mol.pk)
+            forms.add(parent_chembl_id)
             forms.update(MoleculeDictionary.objects.filter(moleculehierarchy__parent_molecule=parent)
-                                                                    .values_list("pk", flat=True))
+                         .values_list("pk", flat=True))
             objects = MoleculeHierarchy.objects.filter(parent_molecule_id__in=list(forms))
 
         else:
             filters.update(kwargs)
             try:
                 objects = self.apply_filters(bundle.request, filters)
-                #if distinct:
-                #    objects = objects.distinct()
+#                if distinct:
+#                    objects = objects.distinct()
             except TypeError as e:
                 if e.message.startswith('Related Field has invalid lookup:'):
                     raise BadRequest(e.message)
@@ -144,7 +154,7 @@ class MoleculeFormsResource(ChemblModelResource):
 
         return self.authorized_read_list(objects, bundle)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail_impl(self, request, base_bundle, **kwargs):
         kwargs['detail'] = True
@@ -165,7 +175,7 @@ class MoleculeFormsResource(ChemblModelResource):
 
         return obj, in_cache
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_multiple(self, request, **kwargs):
         """
@@ -208,7 +218,7 @@ class MoleculeFormsResource(ChemblModelResource):
         self.log_throttled_access(request)
         return self.create_response(request, object_list)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def apply_filters(self, request, filters):
         """
@@ -217,7 +227,6 @@ class MoleculeFormsResource(ChemblModelResource):
         The default simply applies the ``applicable_filters`` as ``**kwargs``,
         but should make it possible to do more advanced things.
         """
-        print 'apply filters'
         pk = filters.get(self._meta.detail_uri_name)
         if not pk:
             applicable_filters, distinct = self.build_filters(filters=filters)
@@ -226,16 +235,16 @@ class MoleculeFormsResource(ChemblModelResource):
                 objects = objects.distinct()
             return objects
 
-        objects =  self.get_object_list(request).filter(Q(molecule__chembl_id=pk) |
-                                                    Q(parent_molecule__chembl_id=pk)).distinct()
+        objects = self.get_object_list(request).filter(Q(molecule__chembl_id=pk) |
+                                                       Q(parent_molecule__chembl_id=pk)).distinct()
         parent = objects[0].parent_molecule.chembl_id
         if parent == pk:
             return objects
         else:
             return self.get_object_list(request).filter(Q(molecule__chembl_id=parent) |
-                                                    Q(parent_molecule__chembl_id=parent)).distinct()
+                                                        Q(parent_molecule__chembl_id=parent)).distinct()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
 
@@ -251,7 +260,7 @@ class MoleculeFormsResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def generate_cache_key(self, *args, **kwargs):
         smooshed = []
@@ -276,8 +285,8 @@ class MoleculeFormsResource(ChemblModelResource):
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key =  "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(mode),
+        cache_key = "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(mode),
                                                str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
         return cache_key
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

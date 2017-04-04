@@ -1,0 +1,3 @@
+{% for synonym in object.moleculesynonyms_set.all %}
+    {{ synonym.molecule_synonym }}
+{% endfor %}

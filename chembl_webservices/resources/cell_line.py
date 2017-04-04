@@ -9,26 +9,33 @@ from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from django.conf.urls import url
 from django.core.exceptions import ObjectDoesNotExist
 from tastypie.exceptions import Unauthorized
+from django.db.models import Prefetch
+
 try:
     from chembl_compatibility.models import CellDictionary
 except ImportError:
     from chembl_core_model.models import CellDictionary
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class CellLineResource(ChemblModelResource):
 
-    cell_chembl_id = fields.CharField('chembl__chembl_id')
+    cell_chembl_id = fields.CharField('chembl_id')
 
     class Meta(ChemblResourceMeta):
         queryset = CellDictionary.objects.all()
         resource_name = 'cell_line'
         collection_name = 'cell_lines'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['chembl']
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        prefetch_related = []
 
         fields = (
             'cell_description',
@@ -45,21 +52,21 @@ class CellLineResource(ChemblModelResource):
         )
 
         filtering = {
-            'cell_description' : CHAR_FILTERS,
-            'cell_chembl_id' : CHAR_FILTERS,
-            'cell_id' : NUMBER_FILTERS,
-            'cell_name' : CHAR_FILTERS,
-            'cell_source_organism' : CHAR_FILTERS,
-            'cell_source_tax_id' : NUMBER_FILTERS,
-            'cell_source_tissue' : CHAR_FILTERS,
-            'cellosaurus_id' : CHAR_FILTERS,
-            'clo_id' : CHAR_FILTERS,
-            'efo_id' : CHAR_FILTERS,
+            'cell_description': CHAR_FILTERS,
+            'cell_chembl_id': CHAR_FILTERS,
+            'cell_id': NUMBER_FILTERS,
+            'cell_name': CHAR_FILTERS,
+            'cell_source_organism': CHAR_FILTERS,
+            'cell_source_tax_id': NUMBER_FILTERS,
+            'cell_source_tissue': CHAR_FILTERS,
+            'cellosaurus_id': CHAR_FILTERS,
+            'clo_id': CHAR_FILTERS,
+            'efo_id': CHAR_FILTERS,
             'cl_lincs_id': CHAR_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
 
@@ -79,12 +86,12 @@ class CellLineResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<cell_id>\d[\d]*)%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         return []
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_multiple(self, request, **kwargs):
         """
@@ -132,4 +139,4 @@ class CellLineResource(ChemblModelResource):
         self.log_throttled_access(request)
         return self.create_response(request, object_list)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

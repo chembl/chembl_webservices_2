@@ -12,17 +12,28 @@ from chembl_webservices.core.utils import CHAR_FILTERS, FLAG_FILTERS, NUMBER_FIL
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from tastypie.utils import dict_strip_unicode_keys
+from django.db.models import Prefetch
 
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
 try:
     from chembl_compatibility.models import TargetDictionary
 except ImportError:
     from chembl_core_model.models import TargetDictionary
-    
+try:
+    from chembl_compatibility.models import TargetType
+except ImportError:
+    from chembl_core_model.models import TargetType
 try:
     from chembl_compatibility.models import TargetComponents
 except ImportError:
     from chembl_core_model.models import TargetComponents
-
+try:
+    from chembl_compatibility.models import ComponentSequences
+except ImportError:
+    from chembl_core_model.models import ComponentSequences
 try:
     from chembl_compatibility.models import ComponentSynonyms
 except ImportError:
@@ -31,6 +42,8 @@ except ImportError:
 try:
     from haystack.query import SearchQuerySet
     sqs = SearchQuerySet()
+    from haystack.inputs import AutoQuery
+    from haystack.query import SQ
 except:
     sqs = None
 
@@ -39,7 +52,8 @@ monkeypatch_tastypie_field()
 
 available_fields = [f.name for f in TargetDictionary._meta.fields]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------------
+
 
 class TargetComponentSynonyms(ChemblModelResource):
 
@@ -56,7 +70,8 @@ class TargetComponentSynonyms(ChemblModelResource):
         resource_name = 'target_component_synonym'
         collection_name = 'target_component_synonyms'
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class TargetComponentsResource(ChemblModelResource):
 
@@ -65,7 +80,7 @@ class TargetComponentsResource(ChemblModelResource):
     component_type = fields.CharField('component__component_type', null=True, blank=True)
     component_description = fields.CharField('component__description', null=True, blank=True)
     target_component_synonyms = fields.ToManyField('chembl_webservices.resources.target.TargetComponentSynonyms',
-        'component__componentsynonyms_set', full=True, null=True, blank=True)
+                                                   'component__componentsynonyms_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         fields = [
@@ -83,19 +98,25 @@ class TargetComponentsResource(ChemblModelResource):
             'component_description': CHAR_FILTERS,
             'target_component_synonyms': ALL_WITH_RELATIONS,
         }
+        prefetch_related = [
+            Prefetch('component', queryset=ComponentSequences.objects.only('accession', 'pk', 'component_type',
+                                                                           'description')),
+            Prefetch('component__componentsynonyms_set'),
+        ]
         queryset = TargetComponents.objects.all()
         resource_name = 'target_component'
         collection_name = 'target_components'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class TargetResource(ChemblModelResource):
 
-    target_chembl_id = fields.CharField('chembl__chembl_id')
-    target_type = fields.CharField('target_type__target_type')
+    target_chembl_id = fields.CharField('chembl_id')
+    target_type = fields.CharField('target_type_id')
     target_components = fields.ToManyField('chembl_webservices.resources.target.TargetComponentsResource',
-        'targetcomponents_set', full=True, null=True, blank=True)
+                                           'targetcomponents_set', full=True, null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -104,12 +125,21 @@ class TargetResource(ChemblModelResource):
         excludes = ['tid']
         resource_name = 'target'
         collection_name = 'targets'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name,
-                                                         'target_components':'target_component',
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name,
+                                                         'target_components': 'target_component',
                                                          'target_component_synonyms': 'target_component_synonym'})
         detail_uri_name = 'chembl_id'
-        prefetch_related = ['chembl', 'target_type', 'targetcomponents_set', 'targetcomponents_set__component',
-                            'targetcomponents_set__component__componentsynonyms_set']
+        prefetch_related = [
+            Prefetch('targetcomponents_set', queryset=TargetComponents.objects.only('pk',
+                                                                                    'relationship',
+                                                                                    'target',
+                                                                                    'component')),
+            Prefetch('targetcomponents_set__component', queryset=ComponentSequences.objects.only('accession',
+                                                                                                 'pk',
+                                                                                                 'component_type',
+                                                                                                 'description')),
+            Prefetch('targetcomponents_set__component__componentsynonyms_set'),
+        ]
 
         fields = (
             'organism',
@@ -119,11 +149,11 @@ class TargetResource(ChemblModelResource):
         )
 
         filtering = {
-            'organism' : CHAR_FILTERS,
-            'pref_name' : CHAR_FILTERS,
+            'organism': CHAR_FILTERS,
+            'pref_name': CHAR_FILTERS,
             'target_type': CHAR_FILTERS,
-            'species_group_flag' : FLAG_FILTERS,
-            'target_chembl_id' : ALL,
+            'species_group_flag': FLAG_FILTERS,
+            'target_chembl_id': ALL,
             'target_components': ALL_WITH_RELATIONS,
         }
         ordering = [
@@ -134,34 +164,7 @@ class TargetResource(ChemblModelResource):
             'target_chembl_id',
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
-
-    def get_search_results(self, user_query):
-
-        res = dict()
-
-        try:
-            queryset = self._meta.queryset
-            model = queryset.model
-
-            res = dict(sqs.models(model).load_all().auto_query(user_query).values_list('pk', 'score'))
-            synonyms = sqs.models(ComponentSynonyms).load_all().auto_query(user_query)
-            for synonym in synonyms:
-                if not synonym.component:
-                    continue
-                for target in synonym.component.targetdictionary_set.all():
-                    key = target.pk
-                    if key in res:
-                        res[key] = max(res[key], synonym.score)
-                    else:
-                        res[key] = synonym.score
-
-        except Exception as e:
-            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
-
-        return res
-
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         """
@@ -178,7 +181,7 @@ class TargetResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def build_filters(self, filters=None):
 
@@ -203,7 +206,7 @@ class TargetResource(ChemblModelResource):
                 field_name = 'target_components'
                 filter_bits = ['target_component_synonyms', 'component_synonym'] + filter_bits
 
-            if not field_name in self.fields:
+            if field_name not in self.fields:
                 if filter_expr == 'pk' or filter_expr == self._meta.detail_uri_name:
                     qs_filters[filter_expr] = value
                 continue
@@ -223,4 +226,18 @@ class TargetResource(ChemblModelResource):
 
         return dict_strip_unicode_keys(qs_filters), distinct
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def get_search_results(self, user_query):
+        res = []
+
+        try:
+            queryset = self._meta.queryset
+            model = queryset.model
+            res = sqs.models(model).load_all().filter(SQ(content=AutoQuery(user_query))
+                                                      | SQ(component_synonyms=AutoQuery(user_query))).order_by('-score')
+        except Exception as e:
+            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query, })
+        return res
+
+# ----------------------------------------------------------------------------------------------------------------------

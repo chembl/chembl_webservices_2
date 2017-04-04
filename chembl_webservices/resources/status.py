@@ -15,17 +15,18 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class StatusResource(ChemblModelResource):
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     class Meta(ChemblResourceMeta):
         resource_name = 'status'
         serializer = ChEMBLApiSerializer(resource_name)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def base_urls(self):
         return [
@@ -39,29 +40,45 @@ class StatusResource(ChemblModelResource):
                 self.wrap_view('dispatch_detail'), name="api_dispatch_list"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         return []
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail(self, request, **kwargs):
-        return self.create_response(request, {'status': 'UP', 'api_version': __version__, 'chembl_db_version': Version.objects.all()[0].name})
+        return self.create_response(request,
+                                    {
+                                        'status': 'UP',
+                                        'api_version': __version__,
+                                        'chembl_db_version': Version.objects.all()[0].name}
+                                    )
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_schema(self, request, **kwargs):
-        return self.create_response(request, {'allowed_detail_http_methods' :
-                                                  ['get'], 'allowed_list_http_methods' : ['get']})
+        return self.create_response(request, {
+            'allowed_detail_http_methods': ['get'],
+            'allowed_list_http_methods': ['get']
+        })
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_datatables(self, request, **kwargs):
-        return self.create_response(request, {"columns":[{"title":"status", "data":"status", "orderable":False},
-                                                         {"title":"version", "data":"version", "orderable":False}]})
+        return self.create_response(request, {
+            "columns": [
+                {
+                    "title": "status",
+                    "data": "status",
+                    "orderable": False
+                },
+                {
+                    "title": "version",
+                    "data": "version",
+                    "orderable": False
+                }
+            ]
+        })
 
-#-----------------------------------------------------------------------------------------------------------------------
-
-
-
+# ----------------------------------------------------------------------------------------------------------------------

@@ -33,7 +33,8 @@ target = TargetResource()
 document = DocsResource()
 cell = CellLineResource()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class ChemblIdLookupResource(ChemblModelResource):
 
@@ -44,20 +45,20 @@ class ChemblIdLookupResource(ChemblModelResource):
         queryset = ChemblIdLookup.objects.all()
         resource_name = 'chembl_id_lookup'
         collection_name = 'chembl_id_lookups'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         fields = (
             'chembl_id',
             'entity_type',
             'status',
         )
         filtering = {
-            'chembl_id' : CHAR_FILTERS,
+            'chembl_id': CHAR_FILTERS,
             'entity_type': CHAR_FILTERS,
             'status': CHAR_FILTERS,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def alter_list_data_to_serialize(self, request, data):
         """
@@ -74,7 +75,7 @@ class ChemblIdLookupResource(ChemblModelResource):
             bundles[idx] = self.alter_detail_data_to_serialize(request, bundle)
         return data
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def alter_detail_data_to_serialize(self, request, bundle):
         """
@@ -89,16 +90,16 @@ class ChemblIdLookupResource(ChemblModelResource):
         detail_name = 'api_dispatch_detail'
         if datas['entity_type'] == 'COMPOUND':
             datas['resource_url'] = molecule._build_reverse_url(detail_name,
-                kwargs=molecule.resource_uri_kwargs(bundle))
+                                                                kwargs=molecule.resource_uri_kwargs(bundle))
         elif datas['entity_type'] == 'ASSAY':
             datas['resource_url'] = assay._build_reverse_url(detail_name,
-                kwargs=assay.resource_uri_kwargs(bundle))
+                                                             kwargs=assay.resource_uri_kwargs(bundle))
         elif datas['entity_type'] == 'TARGET':
             datas['resource_url'] = target._build_reverse_url(detail_name,
-                kwargs=target.resource_uri_kwargs(bundle))
+                                                              kwargs=target.resource_uri_kwargs(bundle))
         elif datas['entity_type'] == 'DOCUMENT':
             datas['resource_url'] = document._build_reverse_url(detail_name,
-                kwargs=document.resource_uri_kwargs(bundle))
+                                                                kwargs=document.resource_uri_kwargs(bundle))
         elif datas['entity_type'] == 'CELL':
             kw = cell.resource_uri_kwargs(bundle)
             kw['cell_chembl_id'] = kw['pk']
@@ -106,7 +107,7 @@ class ChemblIdLookupResource(ChemblModelResource):
             datas['resource_url'] = cell._build_reverse_url(detail_name, kwargs=kw)
         return bundle
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_search_results(self, user_query):
 
@@ -114,31 +115,31 @@ class ChemblIdLookupResource(ChemblModelResource):
 
         try:
             molecule_qs = molecule._meta.queryset
-            molecules = molecule.get_search_results(user_query)
-            res.extend([(a, molecules[str(b)]) for (a,b) in
-                                            molecule_qs.filter(pk__in=molecules.keys()).values_list('chembl_id', 'pk')])
+            molecules = molecule.evaluate_results(molecule.get_search_results(user_query))
+            res.extend([(a, molecules[str(b)]) for (a, b) in
+                        molecule_qs.filter(pk__in=molecules.keys()).values_list('chembl_id', 'pk')])
 
             target_qs = target._meta.queryset
-            targets = target.get_search_results(user_query)
-            res.extend([(a, targets[b]) for (a,b) in
-                                                target_qs.filter(pk__in=targets.keys()).values_list('chembl_id', 'pk')])
+            targets = target.evaluate_results(target.get_search_results(user_query))
+            res.extend([(a, targets[b]) for (a, b) in
+                        target_qs.filter(pk__in=targets.keys()).values_list('chembl_id', 'pk')])
 
             assay_qs = assay._meta.queryset
-            assays = assay.get_search_results(user_query)
-            res.extend([(a, assays[str(b)]) for (a,b) in
-                                                assay_qs.filter(pk__in=assays.keys()).values_list('chembl_id', 'pk')])
+            assays = assay.evaluate_results(assay.get_search_results(user_query))
+            res.extend([(a, assays[str(b)]) for (a, b) in
+                        assay_qs.filter(pk__in=assays.keys()).values_list('chembl_id', 'pk')])
 
             doc_qs = document._meta.queryset
-            docs = document.get_search_results(user_query)
-            res.extend([(a, docs[str(b)]) for (a,b) in
-                                                doc_qs.filter(pk__in=docs.keys()).values_list('chembl_id', 'pk')])
+            docs = document.evaluate_results(document.get_search_results(user_query))
+            res.extend([(a, docs[str(b)]) for (a, b) in
+                        doc_qs.filter(pk__in=docs.keys()).values_list('chembl_id', 'pk')])
 
         except Exception as e:
-            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
+            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query, })
 
         return dict(res)
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         """
@@ -155,4 +156,4 @@ class ChemblIdLookupResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

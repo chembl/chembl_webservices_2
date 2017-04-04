@@ -348,7 +348,16 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def list_cache_handler(self, f):
+    def extract_models(self, chunk):
+        ret = []
+        for c in chunk:
+            obj = c.object
+            obj.score = c.score
+            ret.append(obj)
+        return ret
+
+# ----------------------------------------------------------------------------------------------------------------------
+    def list_cache_handler(self, data_provider):
 
         def handle(bundle, cache_key_name, url_name, **kwargs):
             """
@@ -408,9 +417,10 @@ class ChemblModelResource(ModelResource):
             in_cache = all(page.get('in_cache') for page in pages) and \
                                                         (len(pages) == 1 or pages[0]['count'] == pages[1]['count'])
             if not in_cache:
-                #all_request_params = request.GET.copy()
-                #all_request_params.update(request.POST)
-                sorted_objects = f(bundle, **kwargs)
+                sorted_objects = data_provider(bundle, **kwargs)
+                is_sqs = False
+                if isinstance(sorted_objects, SearchQuerySet):
+                    is_sqs = True
                 try:
                     count = sorted_objects.count() if not isinstance(sorted_objects, list) else len(sorted_objects)
                 except (DatabaseError, NotImplementedError) as e:
@@ -447,11 +457,13 @@ class ChemblModelResource(ModelResource):
                                                                params=kwargs,
                                                                method=request.method)
                         slice = paginator.get_slice(paginator.get_limit(), paginator.get_offset())
+                        if is_sqs:
+                            slice = self.extract_models(slice)
                         len(slice)
                         objs.extend(slice)
                         if not get_failed:
                             try:
-                                self._meta.cache.set(page.get('cache_key'), {'slice': slice,
+                                self._meta.cache.set(page.get('cache_key'), {'slice': list(slice),
                                                                              'count': meta.get('total_count')})
                             except Exception:
                                 self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path, })
@@ -495,17 +507,21 @@ class ChemblModelResource(ModelResource):
         try:
             queryset = self._meta.queryset
             model = queryset.model
-            res = sqs.models(model).load_all().auto_query(user_query).values_list('pk', 'score')
+            res = sqs.models(model).load_all().auto_query(user_query).order_by('-score')
         except Exception as e:
             self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
-
-        return dict(res)
+        return res
 
 # ----------------------------------------------------------------------------------------------------------------------
 
     def check_user_search_query(self, user_query):
         if len(user_query) < 3:
             raise BadRequest('Search query too short')
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def evaluate_results(self, results):
+        return dict(results.values_list('pk', 'score'))
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -525,7 +541,7 @@ class ChemblModelResource(ModelResource):
             raise BadRequest('No search query provided')
         self.check_user_search_query(user_query)
 
-        queryset = self._meta.queryset
+        queryset = getattr(self._meta, 'haystack_queryset', self._meta.queryset)
         res = self.get_search_results(user_query)
         filters = {}
 
@@ -536,7 +552,10 @@ class ChemblModelResource(ModelResource):
         # Update with the provided kwargs.
         filters.update(kwargs)
         applicable_filters, distinct = self.build_filters(filters=filters)
-
+        if not applicable_filters and isinstance(res, SearchQuerySet):
+            return res
+        if not isinstance(res, dict):
+            res = self.evaluate_results(res)
         try:
             objects = queryset.filter(pk__in=res.keys()).filter(**applicable_filters)
             if distinct:

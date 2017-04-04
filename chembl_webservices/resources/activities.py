@@ -6,10 +6,56 @@ from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
+from django.db.models import Prefetch
 try:
     from chembl_compatibility.models import Activities
 except ImportError:
     from chembl_core_model.models import Activities
+try:
+    from chembl_compatibility.models import Assays
+except ImportError:
+    from chembl_core_model.models import Assays
+try:
+    from chembl_compatibility.models import AssayType
+except ImportError:
+    from chembl_core_model.models import AssayType
+try:
+    from chembl_compatibility.models import BioassayOntology
+except ImportError:
+    from chembl_core_model.models import BioassayOntology
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
+try:
+    from chembl_compatibility.models import CompoundRecords
+except ImportError:
+    from chembl_core_model.models import CompoundRecords
+try:
+    from chembl_compatibility.models import CompoundStructures
+except ImportError:
+    from chembl_core_model.models import CompoundStructures
+try:
+    from chembl_compatibility.models import DataValidityLookup
+except ImportError:
+    from chembl_core_model.models import DataValidityLookup
+try:
+    from chembl_compatibility.models import Docs
+except ImportError:
+    from chembl_core_model.models import Docs
+try:
+    from chembl_compatibility.models import MoleculeDictionary
+except ImportError:
+    from chembl_core_model.models import MoleculeDictionary
+try:
+    from chembl_compatibility.models import TargetDictionary
+except ImportError:
+    from chembl_core_model.models import TargetDictionary
+try:
+    from chembl_compatibility.models import Source
+except ImportError:
+    from chembl_core_model.models import Source
+
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
@@ -19,21 +65,21 @@ monkeypatch_tastypie_field()
 
 class ActivityResource(ChemblModelResource):
 
-    bao_format = fields.CharField('assay__bao_format__bao_id', null=True, blank=True)
-    bao_endpoint = fields.CharField('bao_endpoint__bao_id', null=True, blank=True)
+    bao_format = fields.CharField('assay__bao_format_id', null=True, blank=True)
+    bao_endpoint = fields.CharField('bao_endpoint_id', null=True, blank=True)
     data_validity_comment = fields.CharField('data_validity_comment__description', null=True, blank=True)
-    document_chembl_id = fields.CharField('doc__chembl__chembl_id', null=True, blank=True)
-    molecule_chembl_id = fields.CharField('molecule__chembl__chembl_id', null=True, blank=True)
-    target_chembl_id = fields.CharField('assay__target__chembl__chembl_id', null=True, blank=True)
+    document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
+    molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
+    target_chembl_id = fields.CharField('assay__target__chembl_id', null=True, blank=True)
     target_pref_name = fields.CharField('assay__target__pref_name', null=True, blank=True)
     target_organism = fields.CharField('assay__target__organism', null=True, blank=True)
-    assay_chembl_id = fields.CharField('assay__chembl__chembl_id', null=True, blank=True)
-    assay_type = fields.CharField('assay__assay_type__assay_type', null=True, blank=True)
-    src_id = fields.IntegerField('assay__src__src_id', null=True, blank=True)
+    assay_chembl_id = fields.CharField('assay__chembl_id', null=True, blank=True)
+    assay_type = fields.CharField('assay__assay_type', null=True, blank=True)
+    src_id = fields.IntegerField('assay__src_id', null=True, blank=True)
     assay_description = fields.CharField('assay__description', null=True, blank=True)
     document_year = fields.IntegerField('doc__year', null=True, blank=True)
     document_journal = fields.CharField('doc__journal', null=True, blank=True)
-    record_id = fields.IntegerField('record__record_id', null=True, blank=True)
+    record_id = fields.IntegerField('record_id', null=True, blank=True)
     canonical_smiles = fields.CharField('molecule__compoundstructures__canonical_smiles', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -41,11 +87,19 @@ class ActivityResource(ChemblModelResource):
         resource_name = 'activity'
         collection_name = 'activities'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['assay', 'assay__chembl', 'assay__target', 'assay__target__chembl', 'assay__assay_type',
-                            'assay__src', 'doc', 'doc__chembl',
-                            'molecule', 'molecule__chembl', 'molecule__compoundstructures',
-                            'data_validity_comment',
-                            'record']
+        prefetch_related = [
+                            Prefetch('assay', queryset=Assays.objects.only('description', 'chembl', 'assay_id',
+                                                                           'target', 'assay_type', 'src_id',
+                                                                           'bao_format')),
+                            Prefetch('assay__assay_type', queryset=AssayType.objects.only('assay_type', 'assay_desc')),
+                            Prefetch('assay__target', queryset=TargetDictionary.objects.only('pref_name', 'chembl',
+                                                                                             'organism', 'tid')),
+                            Prefetch('doc', queryset=Docs.objects.only('year', 'journal', 'chembl')),
+                            Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl')),
+                            Prefetch('molecule__compoundstructures',
+                                     queryset=CompoundStructures.objects.only('canonical_smiles')),
+                            Prefetch('data_validity_comment', queryset=DataValidityLookup.objects.only('description')),
+                            ]
         fields = (
             'activity_comment',
             'activity_id',

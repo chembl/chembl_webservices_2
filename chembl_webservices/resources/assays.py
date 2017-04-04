@@ -8,32 +8,76 @@ from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
+from django.db.models import Prefetch
+
 try:
     from chembl_compatibility.models import Assays
 except ImportError:
     from chembl_core_model.models import Assays
+try:
+    from chembl_compatibility.models import AssayType
+except ImportError:
+    from chembl_core_model.models import AssayType
+try:
+    from chembl_compatibility.models import BioassayOntology
+except ImportError:
+    from chembl_core_model.models import BioassayOntology
+try:
+    from chembl_compatibility.models import CellDictionary
+except ImportError:
+    from chembl_core_model.models import CellDictionary
+try:
+    from chembl_compatibility.models import ChemblIdLookup
+except ImportError:
+    from chembl_core_model.models import ChemblIdLookup
+try:
+    from chembl_compatibility.models import ConfidenceScoreLookup
+except ImportError:
+    from chembl_core_model.models import ConfidenceScoreLookup
+try:
+    from chembl_compatibility.models import Docs
+except ImportError:
+    from chembl_core_model.models import Docs
+try:
+    from chembl_compatibility.models import RelationshipType
+except ImportError:
+    from chembl_core_model.models import RelationshipType
+try:
+    from chembl_compatibility.models import Source
+except ImportError:
+    from chembl_core_model.models import Source
+try:
+    from chembl_compatibility.models import TargetDictionary
+except ImportError:
+    from chembl_core_model.models import TargetDictionary
+try:
+    from chembl_compatibility.models import TissueDictionary
+except ImportError:
+    from chembl_core_model.models import TissueDictionary
+
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
+
 
 class AssayResource(ChemblModelResource):
 
-    assay_chembl_id = fields.CharField('chembl__chembl_id', null=True, blank=True)
-    document_chembl_id = fields.CharField('doc__chembl__chembl_id', null=True, blank=True)
-    target_chembl_id = fields.CharField('target__chembl__chembl_id', null=True, blank=True)
-    tissue_chembl_id = fields.CharField('tissue__chembl__chembl_id', null=True, blank=True)
+    assay_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
+    document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
+    target_chembl_id = fields.CharField('target__chembl_id', null=True, blank=True)
+    tissue_chembl_id = fields.CharField('tissue__chembl_id', null=True, blank=True)
+    cell_chembl_id = fields.CharField('cell__chembl_id', null=True, blank=True)
     assay_type = fields.CharField('assay_type__assay_type', null=True, blank=True)
     assay_type_description = fields.CharField('assay_type__assay_desc', null=True, blank=True)
     relationship_type = fields.CharField('relationship_type__relationship_type', null=True, blank=True)
     relationship_description = fields.CharField('relationship_type__relationship_desc', null=True, blank=True)
     confidence_score = fields.IntegerField('confidence_score__confidence_score', null=True, blank=True)
     confidence_description = fields.CharField('confidence_score__description', null=True, blank=True)
-    src_id = fields.IntegerField('src__src_id', null=True, blank=True)
-    cell_chembl_id = fields.CharField('cell__chembl__chembl_id', null=True, blank=True)
+    src_id = fields.IntegerField('src_id', null=True, blank=True)
+    bao_format = fields.CharField('bao_format_id', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
-    bao_format = fields.CharField('bao_format__bao_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Assays.objects.all()
@@ -41,17 +85,15 @@ class AssayResource(ChemblModelResource):
         resource_name = 'assay'
         collection_name = 'assays'
         detail_uri_name = 'chembl_id'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
-        prefetch_related = ['assay_type',
-                            'cell', 'cell__chembl',
-                            'chembl',
-                            'confidence_score',
-                            'doc', 'doc__chembl',
-                            'relationship_type',
-                            'src',
-                            'target',
-                            'tissue', 'tissue__chembl',
-                            'bao_format'
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        prefetch_related = [Prefetch('assay_type', queryset=AssayType.objects.only('assay_type', 'assay_desc')),
+                            Prefetch('cell', queryset=CellDictionary.objects.only('chembl_id')),
+                            Prefetch('confidence_score', queryset=ConfidenceScoreLookup.objects.only('confidence_score', 'description')),
+                            Prefetch('doc', queryset=Docs.objects.only('chembl_id')),
+                            Prefetch('relationship_type', queryset=RelationshipType.objects.only('relationship_type', 'relationship_desc')),
+                            Prefetch('src', queryset=Source.objects.only('src_id')),
+                            Prefetch('target', queryset=TargetDictionary.objects.only('chembl_id')),
+                            Prefetch('tissue', queryset=TissueDictionary.objects.only('chembl_id')),
                             ]
 
         fields = (
@@ -105,7 +147,7 @@ class AssayResource(ChemblModelResource):
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def prepend_urls(self):
         """
@@ -122,4 +164,4 @@ class AssayResource(ChemblModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
         ]
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------

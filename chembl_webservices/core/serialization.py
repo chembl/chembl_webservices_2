@@ -3,7 +3,7 @@ __author__ = 'mnowotka'
 from tastypie.serializers import Serializer
 from tastypie.exceptions import UnsupportedFormat
 from tastypie.bundle import Bundle
-from django.utils.simplejson import JSONDecodeError
+from simplejson import JSONDecodeError
 from tastypie.exceptions import BadRequest
 import urlparse
 import logging
