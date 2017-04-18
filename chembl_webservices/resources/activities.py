@@ -7,6 +7,9 @@ from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
 from django.db.models import Prefetch
+from django.conf.urls import url
+from tastypie.utils import trailing_slash
+
 try:
     from chembl_compatibility.models import Activities
 except ImportError:
@@ -74,7 +77,7 @@ class ActivityResource(ChemblModelResource):
     target_pref_name = fields.CharField('assay__target__pref_name', null=True, blank=True)
     target_organism = fields.CharField('assay__target__organism', null=True, blank=True)
     assay_chembl_id = fields.CharField('assay__chembl_id', null=True, blank=True)
-    assay_type = fields.CharField('assay__assay_type', null=True, blank=True)
+    assay_type = fields.CharField('assay__assay_type__assay_type', null=True, blank=True)
     src_id = fields.IntegerField('assay__src_id', null=True, blank=True)
     assay_description = fields.CharField('assay__description', null=True, blank=True)
     document_year = fields.IntegerField('doc__year', null=True, blank=True)
@@ -165,5 +168,22 @@ class ActivityResource(ChemblModelResource):
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or
                                                                 'canonical_smiles' in field)]
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def prepend_urls(self):
+        """
+        Returns a URL scheme based on the default scheme to specify
+        the response format as a file extension, e.g. /api/v1/users.json
+        """
+        return [
+            url(r"^(?P<resource_name>%s)/search%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view('get_search'), name="api_get_search"),
+            url(r"^(?P<resource_name>%s)/search\.(?P<format>xml|json|jsonp|yaml)$" % self._meta.resource_name, self.wrap_view('get_search'), name="api_get_search"),
+            url(r"^(?P<resource_name>%s)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_list"),
+            url(r"^(?P<resource_name>%s)/schema\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_schema'), name="api_get_schema"),
+            url(r"^(?P<resource_name>%s)/datatables\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('get_datatables'), name="api_get_datatables"),
+            url(r"^(?P<resource_name>%s)/set/(?P<%s_list>\w[\w/;-]*)\.(?P<format>\w+)$" % (self._meta.resource_name,  self._meta.detail_uri_name), self.wrap_view('get_multiple'), name="api_get_multiple"),
+            url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)\.(?P<format>\w+)$" % (self._meta.resource_name, self._meta.detail_uri_name), self.wrap_view('dispatch_detail'), name="api_dispatch_detail"),
+        ]
 
 # ----------------------------------------------------------------------------------------------------------------------

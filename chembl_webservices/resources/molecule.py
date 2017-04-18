@@ -526,6 +526,8 @@ _SMILES_.
                 continue
 
             if len(filter_bits) and filter_bits[-1] == 'flexmatch':
+                if not value.strip():
+                    raise BadRequest("Input string is empty")
                 if not for_cache_key:
                     pks = CompoundMols.objects.flexmatch(value).values_list('pk', flat=True)
                     qs_filters["molregno__in"] = pks

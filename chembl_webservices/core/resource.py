@@ -24,6 +24,7 @@ from django.http import HttpResponse
 from django.http import HttpResponseNotFound
 from django.http import Http404
 from django.conf.urls import url
+from django.utils.cache import patch_cache_control, patch_vary_headers
 from django.conf import settings
 from django.core.signals import got_request_exception
 from django.core.exceptions import ObjectDoesNotExist
@@ -253,7 +254,7 @@ class ChemblModelResource(ModelResource):
         def wrapper(request, *args, **kwargs):
             try:
                 request.format = kwargs.get('format', None)
-                request.POST.dict() # touch this dict here ti populate data, strange problem with Django...
+                request.POST.dict()  # touch this dict here ti populate data, strange problem with Django...
 
                 if request.method == 'GET':
                     kwargs.update(dict(self.flatten_django_lists(request.GET.lists())))
@@ -265,7 +266,7 @@ class ChemblModelResource(ModelResource):
                         post_arg = dict(self.flatten_django_lists(request.POST.lists()))
                     elif request.body:
                         post_arg = self.deserialize(request, request.body,
-                            format=request.META.get('CONTENT_TYPE', 'application/json'))
+                                                    format=request.META.get('CONTENT_TYPE', 'application/json'))
                     kwargs.update(post_arg)
 
                 request.format = kwargs.pop('format', None)
@@ -276,14 +277,36 @@ class ChemblModelResource(ModelResource):
                 if 'chembl_id_list' in kwargs and isinstance(kwargs['chembl_id_list'], basestring):
                     kwargs['chembl_id_list'] = kwargs['chembl_id_list'].upper()
 
-                wrapped_view = super(ChemblModelResource, self).wrap_view(view)
-                return wrapped_view(request, *args, **kwargs)
+                callback = getattr(self, view)
+                response = callback(request, *args, **kwargs)
+
+                # Our response can vary based on a number of factors, use
+                # the cache class to determine what we should ``Vary`` on so
+                # caches won't return the wrong (cached) version.
+                varies = getattr(self._meta.cache, "varies", [])
+
+                if varies:
+                    patch_vary_headers(response, varies)
+
+                if self._meta.cache.cacheable(request, response):
+                    if self._meta.cache.cache_control():
+                        # If the request is cacheable and we have a
+                        # ``Cache-Control`` available then patch the header.
+                        patch_cache_control(response, **self._meta.cache.cache_control())
+
+                if request.is_ajax() and not response.has_header("Cache-Control"):
+                    # IE excessively caches XMLHttpRequests, so we're disabling
+                    # the browser cache here.
+                    # See http://www.enhanceie.com/ie/bugs.asp for details.
+                    patch_cache_control(response, no_cache=True)
+
+                return response
 
             except (BadRequest, fields.ApiFieldError) as e:
-                data = {"error": e.args[0] if getattr(e, 'args') else ''}
+                data = {"error_message": e.args[0] if getattr(e, 'args') else ''}
                 return self.error_response(request, data, response_class=http.HttpBadRequest)
             except ValidationError as e:
-                data = {"error": e.messages}
+                data = {"error_message": e.messages}
                 return self.error_response(request, data, response_class=http.HttpBadRequest)
             except Exception as e:
                 if hasattr(e, 'response'):
@@ -330,14 +353,17 @@ class ChemblModelResource(ModelResource):
         if 'MDL-1622' in msg:
             raise BadRequest("Input string %s is not a valid SMILES string" % kwargs.get('smiles'))
         elif 'MDL-0280' in msg:
-            raise BadRequest("The query %s did not set any substructure keys, and thus cannot be used in a similarity search. Use a different query." % kwargs.get('smiles'))
+            raise BadRequest("The query %s did not set any substructure keys, and thus cannot be used in a similarity "
+                             "search. Use a different query." % kwargs.get('smiles'))
         elif 'MDL-0632' in msg:
             raise BadRequest("Molfile containing R-group atoms is not supported, got: %s" % kwargs.get('smiles'))
+        elif 'MDL-0336' in msg:
+            raise BadRequest("Input string is empty")
         elif 'MDL-1250' in msg:
             raise BadRequest("SIMILAR search query can not be a NOSTRUCT or unconnected H or LP atom, got: %s" %
                              kwargs.get('smiles'))
         elif 'ORA-127' in msg:
-            m = re.search('ORA\-127[23]\d: (?P<desc>.*)',msg)
+            m = re.search('ORA-127[23]\d: (?P<desc>.*)',msg)
             if m:
                 raise BadRequest("%s" % m.groupdict().get('desc','Invalid regular expression'))
         elif 'Full-text search' in msg:
@@ -371,7 +397,7 @@ class ChemblModelResource(ModelResource):
 
             try:
                 limit = int(re.search(r'^\d+',
-                                    str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
+                                      str(kwargs.pop('limit', getattr(settings, 'API_LIMIT_PER_PAGE', "20")))).group())
             except(ValueError, AttributeError):
                 limit = int(getattr(settings, 'API_LIMIT_PER_PAGE', 20))
 
@@ -892,6 +918,25 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
+    def apply_filters(self, request, applicable_filters):
+        """
+        An ORM-specific implementation of ``apply_filters``.
+
+        The default simply applies the ``applicable_filters`` as ``**kwargs``,
+        but should make it possible to do more advanced things.
+        """
+        try:
+            return self.get_object_list(request).filter(**applicable_filters)
+        except TypeError as e:
+            if any('chembl_id' in filtr for filtr in applicable_filters):
+                applicable_filters = {
+                    k.replace('chembl_id','chembl__chembl_id'): v for (k, v) in applicable_filters.items()}
+                return self.get_object_list(request).filter(**applicable_filters)
+            raise TypeError(e.message)
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+
     def obj_get_list(self, bundle, **kwargs):
         """
         A ORM-specific implementation of ``obj_get_list``.
@@ -915,7 +960,8 @@ class ChemblModelResource(ModelResource):
                 objects = objects.distinct()
             return self.authorized_read_list(objects, bundle)
         except TypeError as e:
-            if e.message.startswith('Related Field has invalid lookup:'):
+            if e.message.startswith('Related Field has invalid lookup:') \
+                    or e.message.startswith('Related Field got invalid lookup:'):
                 raise BadRequest(e.message)
             else:
                 raise e
@@ -1007,9 +1053,9 @@ class ChemblModelResource(ModelResource):
         response_class = http.HttpApplicationError
         response_code = 500
 
-        NOT_FOUND_EXCEPTIONS = (NotFound, ObjectDoesNotExist, Http404)
+        not_found_exceptions = (NotFound, ObjectDoesNotExist, Http404)
 
-        if isinstance(exception, NOT_FOUND_EXCEPTIONS):
+        if isinstance(exception, not_found_exceptions):
             response_class = HttpResponseNotFound
             response_code = 404
 
