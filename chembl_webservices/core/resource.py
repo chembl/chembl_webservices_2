@@ -352,6 +352,8 @@ class ChemblModelResource(ModelResource):
         msg = str(error.message)
         if 'MDL-1622' in msg:
             raise BadRequest("Input string %s is not a valid SMILES string" % kwargs.get('smiles'))
+        if 'MDL-2063' in msg:
+            raise BadRequest("Input string %s is not a valid SMILES string or ChEMBL ID or InChI Key" % kwargs.get('smiles'))
         elif 'MDL-0280' in msg:
             raise BadRequest("The query %s did not set any substructure keys, and thus cannot be used in a similarity "
                              "search. Use a different query." % kwargs.get('smiles'))
@@ -927,7 +929,7 @@ class ChemblModelResource(ModelResource):
         """
         try:
             return self.get_object_list(request).filter(**applicable_filters)
-        except TypeError as e:
+        except (TypeError, FieldError) as e:
             if any('chembl_id' in filtr for filtr in applicable_filters):
                 applicable_filters = {
                     k.replace('chembl_id','chembl__chembl_id'): v for (k, v) in applicable_filters.items()}
