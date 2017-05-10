@@ -17,9 +17,9 @@ try:
 except ImportError:
     from chembl_core_model.models import ChemblIdLookup
 try:
-    from chembl_compatibility.models import PaperSimilarityVw
+    from chembl_compatibility.models import PaperSimilarity
 except ImportError:
-    from chembl_core_model.models import PaperSimilarityVw
+    from chembl_core_model.models import PaperSimilarity
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
@@ -33,7 +33,7 @@ class DocumentSimilarityResource(ChemblModelResource):
     document_2_chembl_id = fields.CharField('doc_2__chembl_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
-        queryset = PaperSimilarityVw.objects.all()
+        queryset = PaperSimilarity.objects.all()
         detail_uri_name = 'doc_1__chembl_id'
         resource_name = 'document_similarity'
         collection_name = 'document_similarities'
