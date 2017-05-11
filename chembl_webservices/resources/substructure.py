@@ -27,6 +27,8 @@ except ImportError:
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
 
+minimal_substructure_length = 5
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
@@ -72,7 +74,7 @@ class SubstructureResource(MoleculeResource):
         if not smiles:
             try:
                 if chembl_id:
-                    mol_filters = {'chembl_id':chembl_id}
+                    mol_filters = {'chembl_id': chembl_id}
                 else:
                     mol_filters = {'compoundstructures__standard_inchi_key': std_inchi_key}
                 objects = self.apply_filters(bundle.request, mol_filters).values_list(
@@ -97,8 +99,8 @@ class SubstructureResource(MoleculeResource):
             except ValueError:
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
-        elif len(smiles) < 6:
-            raise BadRequest("Structure %s is too short." % smiles)
+        elif len(smiles) < minimal_substructure_length:
+            raise BadRequest("Structure %s is too short. Minimal structure length is %s" % (smiles, minimal_substructure_length))
 
         mols = CompoundMols.objects.with_substructure(smiles).defer('molfile').values_list('molecule_id', flat=True)
 
@@ -174,4 +176,3 @@ class SubstructureResource(MoleculeResource):
         return cache_key
 
 # ----------------------------------------------------------------------------------------------------------------------
-

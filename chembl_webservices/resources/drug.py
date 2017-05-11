@@ -92,7 +92,7 @@ class DrugsResource(ChemblModelResource):
         data['research_codes'] = map(lambda x: x.strip(), data['research_codes'].split(';')) if data['research_codes'] else None
         data['synonyms'] = map(lambda x: x.strip(), data['synonyms'].split(';')) if data['synonyms'] else None
         data['atc_code_description'] = [{'code': x.split()[0], 'description': x.split('[')[1][:-1]} for x in
-                                        map(lambda x: x.strip(), data['atc_code_description'].split(';'))] \
+                                        map(lambda x: x.strip(), data['atc_code_description'].split('];'))] \
             if data['atc_code_description'] else None
         data['atc_classification'] = data.pop('atc_code_description')
         return bundle
