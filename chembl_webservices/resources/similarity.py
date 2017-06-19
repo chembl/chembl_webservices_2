@@ -115,6 +115,10 @@ class SimilarityResource(MoleculeResource):
             except ValueError:
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
+        if not isinstance(smiles, basestring):
+            raise BadRequest("Similarity can only handle a single chemical structure identified by SMILES, "
+                             "InChiKey or ChEMBL ID.")
+
         similar = CompoundMols.objects.similar_to(smiles, similarity).values_list('molecule_id', 'similarity')
 
         similarity_map = None

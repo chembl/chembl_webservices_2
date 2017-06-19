@@ -1,1 +1,1 @@
-{{ object.target.pref_name }}
+{{ object.assay.target.pref_name }}

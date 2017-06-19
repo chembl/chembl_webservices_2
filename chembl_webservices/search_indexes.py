@@ -53,6 +53,11 @@ try:
 except ImportError:
     from chembl_core_model.models import TargetDictionary
 
+try:
+    from chembl_compatibility.models import ProteinFamilyClassification
+except ImportError:
+    from chembl_core_model.models import ProteinFamilyClassification
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
@@ -120,6 +125,20 @@ class DocsIndex(SearchIndex, Indexable):
 
     def get_model(self):
         return Docs
+
+    def get_prefetch(self):
+        return []
+
+    def build_queryset(self, using=None, start_date=None, end_date=None):
+        return self.index_queryset(using=using).order_by(self.get_model()._meta.pk.name)
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+class ProteinClassIndex(SearchIndex, Indexable):
+    text = CharField(document=True, use_template=True)
+
+    def get_model(self):
+        return ProteinFamilyClassification
 
     def get_prefetch(self):
         return []

@@ -1,7 +1,7 @@
 __author__ = 'mnowotka'
 
 from tastypie import fields
-from tastypie.resources import ALL
+from tastypie.resources import ALL, ALL_WITH_RELATIONS
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
@@ -58,10 +58,32 @@ try:
     from chembl_compatibility.models import Source
 except ImportError:
     from chembl_core_model.models import Source
+try:
+    from chembl_compatibility.models import LigandEff
+except ImportError:
+    from chembl_core_model.models import LigandEff
 
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+class LigandEfficiencyResource(ChemblModelResource):
+
+    class Meta(ChemblResourceMeta):
+        queryset = LigandEff.objects.all()
+        resource_name = 'ligand_efficiency'
+        collection_name = 'ligand_efficiencies'
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        filtering = {
+            'bei': NUMBER_FILTERS,
+            'sei': NUMBER_FILTERS,
+            'le': NUMBER_FILTERS,
+            'lle': NUMBER_FILTERS,
+        }
+        ordering = filtering.keys()
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -84,12 +106,14 @@ class ActivityResource(ChemblModelResource):
     document_journal = fields.CharField('doc__journal', null=True, blank=True)
     record_id = fields.IntegerField('record_id', null=True, blank=True)
     canonical_smiles = fields.CharField('molecule__compoundstructures__canonical_smiles', null=True, blank=True)
+    ligand_efficiency = fields.ForeignKey('chembl_webservices.resources.activities.LigandEfficiencyResource',
+                                            'ligandeff', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Activities.objects.all()
         resource_name = 'activity'
         collection_name = 'activities'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name : resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         prefetch_related = [
                             Prefetch('assay', queryset=Assays.objects.only('description', 'chembl', 'assay_id',
                                                                            'target', 'assay_type', 'src_id',
@@ -98,6 +122,7 @@ class ActivityResource(ChemblModelResource):
                             Prefetch('assay__target', queryset=TargetDictionary.objects.only('pref_name', 'chembl',
                                                                                              'organism', 'tid')),
                             Prefetch('doc', queryset=Docs.objects.only('year', 'journal', 'chembl')),
+                            Prefetch('ligandeff'),
                             Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl')),
                             Prefetch('molecule__compoundstructures',
                                      queryset=CompoundStructures.objects.only('canonical_smiles')),
@@ -165,6 +190,7 @@ class ActivityResource(ChemblModelResource):
             'target_pref_name': CHAR_FILTERS,
             'target_organism': CHAR_FILTERS,
             'uo_units': CHAR_FILTERS,
+            'ligand_efficiency': ALL_WITH_RELATIONS,
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or
                                                                 'canonical_smiles' in field)]

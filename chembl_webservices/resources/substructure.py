@@ -99,6 +99,10 @@ class SubstructureResource(MoleculeResource):
             except ValueError:
                 raise BadRequest("Invalid resource lookup data provided (mismatched type).")
 
+        if not isinstance(smiles, basestring):
+            raise BadRequest("Substructure can only handle a single chemical query identified by SMILES, "
+                             "InChiKey or ChEMBL ID.")
+
         elif len(smiles) < minimal_substructure_length:
             raise BadRequest("Structure %s is too short. Minimal structure length is %s" % (smiles, minimal_substructure_length))
 

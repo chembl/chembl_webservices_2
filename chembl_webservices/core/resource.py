@@ -491,8 +491,10 @@ class ChemblModelResource(ModelResource):
                         objs.extend(slice)
                         if not get_failed:
                             try:
-                                self._meta.cache.set(page.get('cache_key'), {'slice': list(slice),
-                                                                             'count': meta.get('total_count')})
+                                slice = list(slice)
+                                if slice:
+                                    self._meta.cache.set(page.get('cache_key'), {'slice': slice,
+                                                                                 'count': meta.get('total_count')})
                             except Exception:
                                 self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path, })
                                 get_failed = False
@@ -587,7 +589,8 @@ class ChemblModelResource(ModelResource):
         try:
             objects = queryset.filter(pk__in=res.keys()).filter(**applicable_filters)
             if distinct:
-                objects = objects.distinct()
+                to_defer = [f.name for f in objects.model._meta.fields if 'TextField' in f.__class__.__name__]
+                objects = objects.defer(*to_defer).distinct()
             objects = self.authorized_read_list(objects, bundle)
             objects = self.prefetch_related(objects)
             if res.keys() and isinstance(res.keys()[0], int):
@@ -901,7 +904,8 @@ class ChemblModelResource(ModelResource):
             applicable_filters, distinct = self.build_filters(filters=kwargs)
             object_list = self.get_object_list(bundle.request).filter(**applicable_filters)
             if distinct:
-                object_list = object_list.distinct()
+                to_defer = [f.name for f in object_list.model._meta.fields if 'TextField' in f.__class__.__name__]
+                object_list = object_list.defer(*to_defer).distinct()
             object_list = self.prefetch_related(object_list)
             stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in kwargs.items()])
 
@@ -959,7 +963,8 @@ class ChemblModelResource(ModelResource):
         try:
             objects = self.apply_filters(bundle.request, applicable_filters)
             if distinct:
-                objects = objects.distinct()
+                to_defer = [f.name for f in objects.model._meta.fields if 'TextField' in f.__class__.__name__]
+                objects = objects.defer(*to_defer).distinct()
             return self.authorized_read_list(objects, bundle)
         except TypeError as e:
             if e.message.startswith('Related Field has invalid lookup:') \

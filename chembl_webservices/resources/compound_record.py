@@ -35,7 +35,8 @@ class CompoundRecordsResource(ChemblModelResource):
 
     class Meta(ChemblResourceMeta):
         queryset = CompoundRecords.objects.all().filter(removed=False)
-        excludes = ['filename', 'updated_by', 'updated_on', 'removed', 'src_compound_id', 'src_compound_id_version']
+        excludes = ['filename', 'updated_by', 'updated_on', 'removed', 'src_compound_id', 'src_compound_id_version',
+                    'load_date', 'curated']
         resource_name = 'compound_record'
         collection_name = 'compound_records'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})

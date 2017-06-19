@@ -52,7 +52,9 @@ class StatusResource(ChemblModelResource):
                                     {
                                         'status': 'UP',
                                         'api_version': __version__,
-                                        'chembl_db_version': Version.objects.all()[0].name}
+                                        'chembl_db_version': Version.objects.all()[0].name,
+                                        'chembl_release_date': Version.objects.all()[0].creation_date
+                                    }
                                     )
 
 # ----------------------------------------------------------------------------------------------------------------------

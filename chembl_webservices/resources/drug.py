@@ -21,6 +21,15 @@ monkeypatch_tastypie_field()
 class DrugsResource(ChemblModelResource):
 
     molecule_chembl_id = fields.CharField('chembl_id')
+    molecule_properties = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculePropertiesResource',
+                                            'parent__compoundproperties', full=True, null=True, blank=True)
+    molecule_structures = fields.ForeignKey('chembl_webservices.resources.molecule.MoleculeStructuresResource',
+                                            'parent__compoundstructures', full=True, null=True, blank=True)
+    molecule_synonyms = fields.ToManyField('chembl_webservices.resources.molecule.MoleculeSynonymsResource',
+                                           'parent__moleculesynonyms_set', full=True, null=True, blank=True)
+    helm_notation = fields.CharField('parent__biotherapeutics__helm_notation', null=True, blank=True)
+    biotherapeutic = fields.ForeignKey('chembl_webservices.resources.bio_component.BiotherapeuticComponentsResource',
+                                       'parent__biotherapeutics', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = MoleculeBrowseDrugs.objects.all()

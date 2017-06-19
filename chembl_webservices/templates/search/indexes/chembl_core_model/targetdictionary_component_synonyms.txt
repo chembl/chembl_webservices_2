@@ -1,5 +1,5 @@
 {% for component in object.targetcomponents_set.all %}
-    {% for synonym in component.componentsynonyms_set.all %}
+    {% for synonym in component.component.componentsynonyms_set.all %}
         {{ synonym.component_synonym }}
     {% endfor %}
 {% endfor %}
