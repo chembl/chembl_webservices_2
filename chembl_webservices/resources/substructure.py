@@ -52,7 +52,7 @@ class SubstructureResource(MoleculeResource):
             url(r"^(?P<resource_name>%s)/(?P<chembl_id>[Cc][Hh][Ee][Mm][Bb][Ll]\d[\d]*)\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<standard_inchi_key>[A-Z]{14}-[A-Z]{10}-[A-Z])\.(?P<format>\w+)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
-            url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx]+)\.(?P<format>json|xml)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
+            url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx]+)\.(?P<format>json|xml|sdf|mol)$" % self._meta.resource_name, self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
             url(r"^(?P<resource_name>%s)/(?P<smiles>[^jx]+)%s$" % (self._meta.resource_name, trailing_slash(),), self.wrap_view('dispatch_list'), name="api_dispatch_detail"),
         ]
 
@@ -174,8 +174,13 @@ class SubstructureResource(MoleculeResource):
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                                 str(identifier), str(limit), str(offset), '|'.join(order_bits),
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
+                                                 self._meta.resource_name,
+                                                 '|'.join(args),
+                                                 str(identifier),
+                                                 str(limit),
+                                                 str(offset),
+                                                 '|'.join(order_bits),
                                                  '|'.join(sorted(smooshed)))
         return cache_key
 

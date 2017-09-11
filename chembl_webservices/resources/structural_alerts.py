@@ -320,9 +320,19 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
         cache_key = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % \
-                    (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                     str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)), str(format),
-                     str(engine), str(dimensions), str(ignoreCoords), str(is_ajax), bgColor)
+                    (self._meta.api_name,
+                     self._meta.resource_name,
+                     '|'.join(args),
+                     str(limit),
+                     str(offset),
+                     '|'.join(order_bits),
+                     '|'.join(sorted(smooshed)),
+                     str(format),
+                     str(engine),
+                     str(dimensions),
+                     str(ignoreCoords),
+                     str(is_ajax),
+                     bgColor)
         return cache_key
 
 

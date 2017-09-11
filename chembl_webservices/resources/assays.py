@@ -122,30 +122,30 @@ class AssayResource(ChemblModelResource):
         )
 
         filtering = {
-            'assay_category' : CHAR_FILTERS,
-            'assay_cell_type' : CHAR_FILTERS,
-            'assay_chembl_id' : ALL,
-            'assay_organism' : CHAR_FILTERS,
-            'assay_strain' : CHAR_FILTERS,
-            'assay_subcellular_fraction' : CHAR_FILTERS,
-            'assay_tax_id' : NUMBER_FILTERS,
-            'assay_test_type' : CHAR_FILTERS,
-            'assay_tissue' : CHAR_FILTERS,
-            'assay_type' : CHAR_FILTERS,
-#            'assay_type_description' : ALL,
-            'bao_format' : ALL,
-            'cell_chembl_id' : CHAR_FILTERS,
-#            'confidence_description' : ALL,
-            'confidence_score' : NUMBER_FILTERS,
-            'description' : CHAR_FILTERS, #TODO: remove from ordering
-            'document_chembl_id' : ALL,
-#            'relationship_description' : ALL,
-            'relationship_type' : CHAR_FILTERS,
-            'src_assay_id' : NUMBER_FILTERS,
-            'src_id' : NUMBER_FILTERS,
-            'target_chembl_id' : ALL,
+            'assay_category': CHAR_FILTERS,
+            'assay_cell_type': CHAR_FILTERS,
+            'assay_chembl_id': ALL,
+            'assay_organism': CHAR_FILTERS,
+            'assay_strain': CHAR_FILTERS,
+            'assay_subcellular_fraction': CHAR_FILTERS,
+            'assay_tax_id': NUMBER_FILTERS,
+            'assay_test_type': CHAR_FILTERS,
+            'assay_tissue': CHAR_FILTERS,
+            'assay_type': CHAR_FILTERS,
+#            'assay_type_description': ALL,
+            'bao_format': ALL,
+            'cell_chembl_id': CHAR_FILTERS,
+#            'confidence_description': ALL,
+            'confidence_score': NUMBER_FILTERS,
+            'description': CHAR_FILTERS, #TODO: remove from ordering
+            'document_chembl_id': ALL,
+#            'relationship_description': ALL,
+            'relationship_type': CHAR_FILTERS,
+            'src_assay_id': NUMBER_FILTERS,
+            'src_id': NUMBER_FILTERS,
+            'target_chembl_id': ALL,
         }
-        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field) ]
+        ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
 # ----------------------------------------------------------------------------------------------------------------------
 

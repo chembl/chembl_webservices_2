@@ -98,6 +98,7 @@ class ActivityResource(ChemblModelResource):
     target_chembl_id = fields.CharField('assay__target__chembl_id', null=True, blank=True)
     target_pref_name = fields.CharField('assay__target__pref_name', null=True, blank=True)
     target_organism = fields.CharField('assay__target__organism', null=True, blank=True)
+    target_tax_id = fields.CharField('assay__target__tax_id', null=True, blank=True)
     assay_chembl_id = fields.CharField('assay__chembl_id', null=True, blank=True)
     assay_type = fields.CharField('assay__assay_type__assay_type', null=True, blank=True)
     src_id = fields.IntegerField('assay__src_id', null=True, blank=True)
@@ -120,7 +121,8 @@ class ActivityResource(ChemblModelResource):
                                                                            'bao_format')),
                             Prefetch('assay__assay_type', queryset=AssayType.objects.only('assay_type', 'assay_desc')),
                             Prefetch('assay__target', queryset=TargetDictionary.objects.only('pref_name', 'chembl',
-                                                                                             'organism', 'tid')),
+                                                                                             'organism', 'tid',
+                                                                                             'tax_id')),
                             Prefetch('doc', queryset=Docs.objects.only('year', 'journal', 'chembl')),
                             Prefetch('ligandeff'),
                             Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl')),
@@ -189,6 +191,7 @@ class ActivityResource(ChemblModelResource):
             'standard_value': NUMBER_FILTERS,
             'target_pref_name': CHAR_FILTERS,
             'target_organism': CHAR_FILTERS,
+            'target_tax_id': NUMBER_FILTERS,
             'uo_units': CHAR_FILTERS,
             'ligand_efficiency': ALL_WITH_RELATIONS,
         }

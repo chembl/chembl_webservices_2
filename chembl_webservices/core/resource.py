@@ -31,6 +31,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.exceptions import MultipleObjectsReturned
 from django.core.exceptions import ValidationError
 from django.core.exceptions import FieldError
+from django.core.exceptions import TooManyFieldsSent
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from django.db import DatabaseError
@@ -254,7 +255,7 @@ class ChemblModelResource(ModelResource):
         def wrapper(request, *args, **kwargs):
             try:
                 request.format = kwargs.get('format', None)
-                request.POST.dict()  # touch this dict here ti populate data, strange problem with Django...
+                request.POST.dict()  # touch this dict here to populate data, strange problem with Django...
 
                 if request.method == 'GET':
                     kwargs.update(dict(self.flatten_django_lists(request.GET.lists())))
@@ -308,6 +309,11 @@ class ChemblModelResource(ModelResource):
             except ValidationError as e:
                 data = {"error_message": e.messages}
                 return self.error_response(request, data, response_class=http.HttpBadRequest)
+            except TooManyFieldsSent:
+                return self.error_response(request, {"error_message": 'Too many fields send. If you use "__in" filter '
+                                                                      'you should aggregate IDs in an array, please '
+                                                                      'refer to the ChEMBL API documentation.'},
+                                           response_class=http.HttpBadRequest)
             except Exception as e:
                 if hasattr(e, 'response'):
                     return e.response
@@ -364,6 +370,8 @@ class ChemblModelResource(ModelResource):
         elif 'MDL-1250' in msg:
             raise BadRequest("SIMILAR search query can not be a NOSTRUCT or unconnected H or LP atom, got: %s" %
                              kwargs.get('smiles'))
+        elif 'MDL-1941' in msg:
+            raise BadRequest('Error in molecule perception, please correct your query.')
         elif 'ORA-127' in msg:
             m = re.search('ORA-127[23]\d: (?P<desc>.*)',msg)
             if m:
@@ -557,7 +565,7 @@ class ChemblModelResource(ModelResource):
 
     def search_source(self, bundle, **kwargs):
 
-        user_query = kwargs.get('q')
+        user_query = unicode(kwargs.get('q').decode('utf-8'))
 
         try:
             if not sqs:
@@ -1125,9 +1133,14 @@ class ChemblModelResource(ModelResource):
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                                  str(limit), str(offset), str(query), '|'.join(order_bits),
-                                                  '|'.join(sorted(smooshed)))
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
+                                                 self._meta.resource_name,
+                                                 '|'.join(args),
+                                                 str(limit),
+                                                 str(offset),
+                                                 query.decode('utf-8'),
+                                                 '|'.join(order_bits),
+                                                 '|'.join(sorted(smooshed)))
         return cache_key
 
 # ----------------------------------------------------------------------------------------------------------------------

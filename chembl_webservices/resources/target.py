@@ -143,6 +143,7 @@ class TargetResource(ChemblModelResource):
 
         fields = (
             'organism',
+            'tax_id',
             'pref_name',
             'species_group_flag',
             'target_chembl_id',
@@ -150,6 +151,7 @@ class TargetResource(ChemblModelResource):
 
         filtering = {
             'organism': CHAR_FILTERS,
+            'tax_id': NUMBER_FILTERS,
             'pref_name': CHAR_FILTERS,
             'target_type': CHAR_FILTERS,
             'species_group_flag': FLAG_FILTERS,
@@ -158,6 +160,7 @@ class TargetResource(ChemblModelResource):
         }
         ordering = [
             'organism',
+            'tax_id',
             'pref_name',
             'target_type',
             'species_group_flag',

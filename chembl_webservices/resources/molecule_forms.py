@@ -285,8 +285,13 @@ class MoleculeFormsResource(ChemblModelResource):
             smooshed.append("%s=%s" % (key, value))
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(mode),
-                                               str(limit), str(offset),'|'.join(order_bits), '|'.join(sorted(smooshed)))
+        cache_key = "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
+                                              self._meta.resource_name,
+                                              '|'.join(mode),
+                                              str(limit),
+                                              str(offset),
+                                              '|'.join(order_bits),
+                                              '|'.join(sorted(smooshed)))
         return cache_key
 
 # ----------------------------------------------------------------------------------------------------------------------

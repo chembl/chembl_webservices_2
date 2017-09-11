@@ -13,6 +13,10 @@ try:
 except ImportError:
     from chembl_core_model.models import TargetPredictions
 try:
+    from chembl_compatibility.models import TargetDictionary
+except ImportError:
+    from chembl_core_model.models import TargetDictionary
+try:
     from chembl_compatibility.models import Docs
 except ImportError:
     from chembl_core_model.models import Docs
@@ -29,16 +33,23 @@ monkeypatch_tastypie_field()
 
 class TargetPredictionsResource(ChemblModelResource):
 
+    target_organism = fields.CharField('target__organism', null=True, blank=True)
+    target_tax_id = fields.CharField('target__tax_id', null=True, blank=True)
+
     class Meta(ChemblResourceMeta):
         queryset = TargetPredictions.objects.all()
         resource_name = 'target_prediction'
         collection_name = 'target_predictions'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
-        prefetch_related = []
+        prefetch_related = [Prefetch('target', queryset=TargetDictionary.objects.only('chembl',
+                                                                                             'organism', 'tid',
+                                                                                             'tax_id')),]
         filtering = {
             'pred_id': ALL,
             'molecule_chembl_id': ALL,
             'target_chembl_id': ALL,
+            'target_organism': ALL,
+            'target_tax_id': ALL,
             'target_accession': CHAR_FILTERS,
             'probability': NUMBER_FILTERS,
             'in_training': FLAG_FILTERS,

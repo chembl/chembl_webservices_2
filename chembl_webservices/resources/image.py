@@ -393,10 +393,17 @@ You can specify optional parameters:
         is_ajax = kwargs.get("is_ajax", 2)
 
         # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                                          str(molecule__chembl_id), str(standard_inchi_key),
-                                                          str(format), str(engine), str(dimensions), str(ignoreCoords),
-                                                          str(is_ajax), bgColor)
+        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
+                                                          self._meta.resource_name,
+                                                          '|'.join(args),
+                                                          str(molecule__chembl_id),
+                                                          str(standard_inchi_key),
+                                                          str(format),
+                                                          str(engine),
+                                                          str(dimensions),
+                                                          str(ignoreCoords),
+                                                          str(is_ajax),
+                                                          bgColor)
         return cache_key
 
 # ----------------------------------------------------------------------------------------------------------------------

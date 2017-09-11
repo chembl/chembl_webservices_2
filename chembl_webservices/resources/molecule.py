@@ -579,7 +579,7 @@ _SMILES_.
         cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
                                                  str(limit),
                                                  str(offset),
-                                                 str(query),
+                                                 query.decode('utf-8'),
                                                  '|'.join(order_bits),
                                                  '|'.join(sorted(smooshed)))
         return cache_key
