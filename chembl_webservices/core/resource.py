@@ -565,7 +565,10 @@ class ChemblModelResource(ModelResource):
 
     def search_source(self, bundle, **kwargs):
 
-        user_query = unicode(kwargs.get('q').decode('utf-8'))
+        user_query = kwargs.get('q')
+
+        if not isinstance(user_query, unicode):
+            user_query = user_query.decode('utf-8')
 
         try:
             if not sqs:
@@ -1132,13 +1135,16 @@ class ChemblModelResource(ModelResource):
         for key, value in filters.items():
             smooshed.append("%s=%s" % (key, value))
 
+        if isinstance(query, unicode):
+            query = query.encode('utf-8')
+
         # Use a list plus a ``.join()`` because it's faster than concatenation.
         cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
                                                  self._meta.resource_name,
                                                  '|'.join(args),
                                                  str(limit),
                                                  str(offset),
-                                                 query.decode('utf-8'),
+                                                 query,
                                                  '|'.join(order_bits),
                                                  '|'.join(sorted(smooshed)))
         return cache_key

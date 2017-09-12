@@ -136,7 +136,8 @@ class SubstructureResource(MoleculeResource):
     def get_resource_uri(self, bundle_or_obj=None, url_name='dispatch_list'):
         if bundle_or_obj is not None:
             url_name = 'dispatch_detail'
-
+        if url_name == 'api_dispatch_list':
+            url_name = 'dispatch_list'
         try:
             return self._build_reverse_url(url_name, kwargs=self.resource_uri_kwargs(bundle_or_obj))
         except NoReverseMatch:
