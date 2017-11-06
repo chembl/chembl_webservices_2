@@ -91,10 +91,12 @@ class LigandEfficiencyResource(ChemblModelResource):
 class ActivityResource(ChemblModelResource):
 
     bao_format = fields.CharField('assay__bao_format_id', null=True, blank=True)
+    bao_label = fields.CharField('assay__bao_format__label', null=True, blank=True)
     bao_endpoint = fields.CharField('bao_endpoint_id', null=True, blank=True)
     data_validity_comment = fields.CharField('data_validity_comment__description', null=True, blank=True)
     document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
     molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
+    parent_molecule_chembl_id = fields.CharField('molecule__moleculehierarchy__parent_molecule__chembl_id', null=True, blank=True)
     target_chembl_id = fields.CharField('assay__target__chembl_id', null=True, blank=True)
     target_pref_name = fields.CharField('assay__target__pref_name', null=True, blank=True)
     target_organism = fields.CharField('assay__target__organism', null=True, blank=True)
@@ -120,6 +122,7 @@ class ActivityResource(ChemblModelResource):
                                                                            'target', 'assay_type', 'src_id',
                                                                            'bao_format')),
                             Prefetch('assay__assay_type', queryset=AssayType.objects.only('assay_type', 'assay_desc')),
+                            Prefetch('assay__bao_format', queryset=BioassayOntology.objects.only('bao_id', 'label')),
                             Prefetch('assay__target', queryset=TargetDictionary.objects.only('pref_name', 'chembl',
                                                                                              'organism', 'tid',
                                                                                              'tax_id')),
@@ -128,6 +131,9 @@ class ActivityResource(ChemblModelResource):
                             Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl')),
                             Prefetch('molecule__compoundstructures',
                                      queryset=CompoundStructures.objects.only('canonical_smiles')),
+                            Prefetch('molecule__moleculehierarchy'),
+                            Prefetch('molecule__moleculehierarchy__parent_molecule',
+                                     queryset=MoleculeDictionary.objects.only('chembl')),
                             Prefetch('data_validity_comment', queryset=DataValidityLookup.objects.only('description')),
                             ]
         fields = (
@@ -145,6 +151,7 @@ class ActivityResource(ChemblModelResource):
             'document_year',
             'document_chembl_id',
             'molecule_chembl_id',
+            'parent_molecule_chembl_id',
             'pchembl_value',
             'potential_duplicate',
             'published_relation',
@@ -176,6 +183,7 @@ class ActivityResource(ChemblModelResource):
             'document_journal': CHAR_FILTERS,
             'document_year': NUMBER_FILTERS,
             'molecule_chembl_id': ALL,
+            'parent_molecule_chembl_id': ALL,
             'pchembl_value': NUMBER_FILTERS,
             'potential_duplicate': FLAG_FILTERS,
             'published_relation': CHAR_FILTERS,

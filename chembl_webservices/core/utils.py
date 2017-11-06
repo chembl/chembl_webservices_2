@@ -18,6 +18,15 @@ try:
 except ImportError:
     DrawingOptions = None
 
+NEW_RENDER_ENGINE = False
+
+try:
+    from rdkit.Chem.Draw import rdMolDraw2D
+    if hasattr(rdMolDraw2D, 'MolDraw2DCairo') and hasattr(rdMolDraw2D, 'MolDraw2DSVG'):
+        NEW_RENDER_ENGINE = True
+except:
+    pass
+
 try:
     import indigo
     import indigo_renderer
@@ -247,35 +256,74 @@ def render_indigo(mol, options, frmt, margin, size, colors, ignoreCoords):
 
 def render_rdkit(mol, highlight, options, frmt, size, colors, ignoreCoords):
 
-    if not colors:
-        dd = defaultdict(lambda: (0, 0, 0))
-        options.elemDict = dd
-    else:
-        options.elemDict = STANDARD_RDKIT_COLORS
-
     leg = mol.GetProp("_Name") if mol.HasProp("_Name") else None
     matching = []
     if highlight:
         matching = highlight
     if ignoreCoords:
         AllChem.Compute2DCoords(mol)
+
+    if NEW_RENDER_ENGINE:
+        return render_rdkit_modern_rendering(mol, matching, options, frmt, size, colors, leg)
+    else:
+        return render_rdkit_legacy(mol, matching, options, frmt, size, colors, leg)
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+def render_rdkit_modern_rendering(mol, highlight, options, frmt, size, colors, legend):
+
+    if frmt == 'png':
+        drawer = rdMolDraw2D.MolDraw2DCairo(size, size)
+    elif frmt == 'svg':
+        drawer = rdMolDraw2D.MolDraw2DSVG(size, size)
+    else:
+        return
+    opts = drawer.drawOptions()
+    if hasattr(options, 'bgColor') and options.bgColor:
+        opts.setBackgroundColour(options.bgColor)
+    else:
+        opts.clearBackground = False
+
+    if not colors:
+        opts.useBWAtomPalette()
+    else:
+        opts.useDefaultAtomPalette()
+
+    Chem.GetSSSR(mol)
+
+    drawer.DrawMolecule(mol, highlightAtoms=highlight, legend=legend)
+    drawer.FinishDrawing()
+    return drawer.GetDrawingText()
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+def render_rdkit_legacy(mol, highlight, options, frmt, size, colors, legend):
+
+    if not colors:
+        dd = defaultdict(lambda: (0, 0, 0))
+        options.elemDict = dd
+    else:
+        options.elemDict = STANDARD_RDKIT_COLORS
+
     if frmt == 'png':
         buf = StringIO.StringIO()
-        image = draw.MolToImage(mol, size=(size, size), legend=leg, fitImage=True, options=options,
-                                highlightAtoms=matching)
+        image = draw.MolToImage(mol, size=(size, size), legend=legend, fitImage=True, options=options,
+                                highlightAtoms=highlight)
         image.save(buf, "PNG")
         return buf.getvalue()
 
     elif frmt == 'svg':
-        if cffi and cairocffi.version <= (1,10,0) :
+        if cffi and cairocffi.version <= (1, 10, 0):
             imageData = io.BytesIO()
         else:
             imageData = StringIO.StringIO()
         surf = cairo.SVGSurface(imageData, size, size)
         ctx = cairo.Context(surf)
         canv = cairoCanvas.Canvas(ctx=ctx, size=(size, size), imageType='svg')
-        draw.MolToImage(mol, size=(size, size), legend=leg, canvas=canv, fitImage=True, options=options,
-                        highlightAtoms=matching)
+        draw.MolToImage(mol, size=(size, size), legend=legend, canvas=canv, fitImage=True, options=options,
+                        highlightAtoms=highlight)
         canv.flush()
         surf.finish()
         return imageData.getvalue()

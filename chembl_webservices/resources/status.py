@@ -11,6 +11,26 @@ try:
     from chembl_compatibility.models import Version
 except ImportError:
     from chembl_core_model.models import Version
+try:
+    from chembl_compatibility.models import TargetDictionary
+except ImportError:
+    from chembl_core_model.models import TargetDictionary
+try:
+    from chembl_compatibility.models import CompoundRecords
+except ImportError:
+    from chembl_core_model.models import CompoundRecords
+try:
+    from chembl_compatibility.models import MoleculeDictionary
+except ImportError:
+    from chembl_core_model.models import MoleculeDictionary
+try:
+    from chembl_compatibility.models import Activities
+except ImportError:
+    from chembl_core_model.models import Activities
+try:
+    from chembl_compatibility.models import Docs
+except ImportError:
+    from chembl_core_model.models import Docs
 
 from chembl_webservices.core.fields import monkeypatch_tastypie_field
 monkeypatch_tastypie_field()
@@ -53,7 +73,12 @@ class StatusResource(ChemblModelResource):
                                         'status': 'UP',
                                         'api_version': __version__,
                                         'chembl_db_version': Version.objects.all()[0].name,
-                                        'chembl_release_date': Version.objects.all()[0].creation_date
+                                        'chembl_release_date': Version.objects.all()[0].creation_date,
+                                        'targets': TargetDictionary.objects.all().count(),
+                                        'compound_records': CompoundRecords.objects.all().count(),
+                                        'disinct_compounds': MoleculeDictionary.objects.all().count(),
+                                        'activities': Activities.objects.all().count(),
+                                        'publications': Docs.objects.all().count(),
                                     }
                                     )
 

@@ -77,6 +77,7 @@ class AssayResource(ChemblModelResource):
     confidence_description = fields.CharField('confidence_score__description', null=True, blank=True)
     src_id = fields.IntegerField('src_id', null=True, blank=True)
     bao_format = fields.CharField('bao_format_id', null=True, blank=True)
+    bao_label = fields.CharField('bao_format__label', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -94,6 +95,7 @@ class AssayResource(ChemblModelResource):
                             Prefetch('src', queryset=Source.objects.only('src_id')),
                             Prefetch('target', queryset=TargetDictionary.objects.only('chembl_id')),
                             Prefetch('tissue', queryset=TissueDictionary.objects.only('chembl_id')),
+                            Prefetch('bao_format', queryset=BioassayOntology.objects.only('bao_id', 'label')),
                             ]
 
         fields = (

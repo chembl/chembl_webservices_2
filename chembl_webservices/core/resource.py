@@ -547,7 +547,7 @@ class ChemblModelResource(ModelResource):
             model = queryset.model
             res = sqs.models(model).load_all().auto_query(user_query).order_by('-score')
         except Exception as e:
-            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query,})
+            self.log.error('Searching exception', exc_info=True, extra={'user_query': user_query, })
         return res
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -567,8 +567,14 @@ class ChemblModelResource(ModelResource):
 
         user_query = kwargs.get('q')
 
-        if not isinstance(user_query, unicode):
+        if not user_query:
+            self.log.error('Empty user query', exc_info=True, extra={'bundle': bundle, 'kwargs': kwargs})
+            raise BadRequest('No search query provided')
+
+        if user_query and not isinstance(user_query, unicode):
             user_query = user_query.decode('utf-8')
+
+        self.check_user_search_query(user_query)
 
         try:
             if not sqs:
@@ -577,10 +583,6 @@ class ChemblModelResource(ModelResource):
         except Exception as e:
             self.log.error('Search error in search_resource', exc_info=True, extra={'request': user_query, })
             return self._meta.queryset.none()
-
-        if not user_query:
-            raise BadRequest('No search query provided')
-        self.check_user_search_query(user_query)
 
         queryset = getattr(self._meta, 'haystack_queryset', self._meta.queryset)
         res = self.get_search_results(user_query)
@@ -598,7 +600,7 @@ class ChemblModelResource(ModelResource):
         if not isinstance(res, dict):
             res = self.evaluate_results(res)
         try:
-            objects = queryset.filter(pk__in=res.keys()).filter(**applicable_filters)
+            objects = self.chain_filters(queryset.filter(pk__in=res.keys()), applicable_filters)
             if distinct:
                 to_defer = [f.name for f in objects.model._meta.fields if 'TextField' in f.__class__.__name__]
                 objects = objects.defer(*to_defer).distinct()
@@ -613,12 +615,18 @@ class ChemblModelResource(ModelResource):
             return sorted(objects, key=lambda obj: obj.score, reverse=True)
 
         except TypeError as e:
-            if e.message.startswith('Related Field has invalid lookup:'):
+            if 'invalid lookup' in e.message:
+                raise BadRequest(e.message)
+            else:
+                raise e
+        except FieldError as e:
+            if 'invalid lookup' in e.message:
                 raise BadRequest(e.message)
             else:
                 raise e
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
+
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -913,7 +921,7 @@ class ChemblModelResource(ModelResource):
         """
         try:
             applicable_filters, distinct = self.build_filters(filters=kwargs)
-            object_list = self.get_object_list(bundle.request).filter(**applicable_filters)
+            object_list = self.chain_filters(self.get_object_list(bundle.request), applicable_filters)
             if distinct:
                 to_defer = [f.name for f in object_list.model._meta.fields if 'TextField' in f.__class__.__name__]
                 object_list = object_list.defer(*to_defer).distinct()
@@ -935,6 +943,15 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
+    def chain_filters(self, query, applicable_filters):
+        ret = query
+        list_filters = self.normalise_filters(applicable_filters)
+        for filtr in list_filters:
+            ret = ret.filter(**filtr)
+        return ret
+
+# ----------------------------------------------------------------------------------------------------------------------
+
     def apply_filters(self, request, applicable_filters):
         """
         An ORM-specific implementation of ``apply_filters``.
@@ -943,14 +960,32 @@ class ChemblModelResource(ModelResource):
         but should make it possible to do more advanced things.
         """
         try:
-            return self.get_object_list(request).filter(**applicable_filters)
+            return self.chain_filters(self.get_object_list(request), applicable_filters)
         except (TypeError, FieldError) as e:
             if any('chembl_id' in filtr for filtr in applicable_filters):
                 applicable_filters = {
-                    k.replace('chembl_id','chembl__chembl_id'): v for (k, v) in applicable_filters.items()}
-                return self.get_object_list(request).filter(**applicable_filters)
+                    k.replace('chembl_id', 'chembl__chembl_id'): v for (k, v) in applicable_filters.items()}
+                return self.chain_filters(self.get_object_list(request), applicable_filters)
             raise TypeError(e.message)
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+    @staticmethod
+    def normalise_filters(applicable_filters):
+        if not applicable_filters:
+            return []
+        for key in applicable_filters:
+            if not (isinstance(applicable_filters[key], list) or isinstance(applicable_filters[key], tuple)) or \
+                    key.endswith('__in') or key.endswith('__range'):
+                applicable_filters[key] = [applicable_filters[key]]
+        # reserve as much *distinct* dicts as the longest sequence
+        result = [{} for i in range(max(map(len, applicable_filters.values())))]
+        # fill each dict, one key at a time
+        for k, seq in applicable_filters.items():
+            for oneDict, oneValue in zip(result, seq):
+                oneDict[k] = oneValue
+        return result
 
 # ----------------------------------------------------------------------------------------------------------------------
 

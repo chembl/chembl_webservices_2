@@ -15,6 +15,8 @@ from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from tastypie.utils import dict_strip_unicode_keys
 from django.db.models import Prefetch
+from tastypie import http
+from tastypie.exceptions import ImmediateHttpResponse
 
 from chembl_core_model.models import CompoundMols
 try:
@@ -528,6 +530,13 @@ _SMILES_.
             if len(filter_bits) and filter_bits[-1] == 'flexmatch':
                 if not value.strip():
                     raise BadRequest("Input string is empty")
+                if value.upper().startswith('CHEMBL'):
+                    try:
+                        mol = MoleculeDictionary.objects.get(chembl_id=value.upper())
+                        smiles = mol.compoundstructures.canonical_smiles
+                        value = smiles
+                    except ObjectDoesNotExist:
+                        raise ImmediateHttpResponse(response=http.HttpNotFound())
                 if not for_cache_key:
                     pks = CompoundMols.objects.flexmatch(value).values_list('pk', flat=True)
                     qs_filters["molregno__in"] = pks

@@ -181,7 +181,7 @@ class SimilarityResource(MoleculeResource):
             original_similarity = kwargs['similarity']
 
             try:
-                kwargs['similarity'] = int(re.search(r'^\d+', kwargs.get('similarity', "0")).group())
+                kwargs['similarity'] = int(re.search(r'^\d+', str(kwargs.get('similarity', "0"))).group())
                 similarity = kwargs.get('similarity', 0)
                 if similarity < 70 or similarity > 100:
                     raise BadRequest("Invalid Similarity Score supplied: %s" % original_similarity)
