@@ -2,7 +2,6 @@ __author__ = 'mnowotka'
 
 from tastypie import fields
 from tastypie.resources import ALL, ALL_WITH_RELATIONS
-from tastypie.exceptions import BadRequest
 from django.conf.urls import url
 from tastypie.utils import trailing_slash
 from chembl_webservices.core.resource import ChemblModelResource
@@ -38,7 +37,14 @@ try:
     from chembl_compatibility.models import ComponentSynonyms
 except ImportError:
     from chembl_core_model.models import ComponentSynonyms
-
+try:
+    from chembl_compatibility.models import TargetXref
+except ImportError:
+    from chembl_core_model.models import TargetXref
+try:
+    from chembl_compatibility.models import XrefSource
+except ImportError:
+    from chembl_core_model.models import XrefSource
 try:
     from haystack.query import SearchQuerySet
     sqs = SearchQuerySet()
@@ -111,12 +117,28 @@ class TargetComponentsResource(ChemblModelResource):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
+class TargetXRefResource(ChemblModelResource):
+
+    xref_src = fields.CharField('xref_src_db__pk')
+
+    class Meta(ChemblResourceMeta):
+        queryset = TargetXref.objects.all()
+        resource_name = 'cross_reference'
+        collection_name = 'cross_references'
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        fields = ('xref_name', 'xref_id', 'xref_src')
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
 class TargetResource(ChemblModelResource):
 
     target_chembl_id = fields.CharField('chembl_id')
     target_type = fields.CharField('target_type_id')
     target_components = fields.ToManyField('chembl_webservices.resources.target.TargetComponentsResource',
                                            'targetcomponents_set', full=True, null=True, blank=True)
+    cross_references = fields.ToManyField('chembl_webservices.resources.target.TargetXRefResource',
+                                          'targetxref_set', full=True, null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -138,6 +160,13 @@ class TargetResource(ChemblModelResource):
                                                                                                  'pk',
                                                                                                  'component_type',
                                                                                                  'description')),
+            Prefetch('targetxref_set', queryset=TargetXref.objects.only(
+                'pk',
+                'target',
+                'xref_name',
+                'xref_id',
+                'xref_src_db')),
+            Prefetch('targetxref_set__xref_src_db', queryset=XrefSource.objects.only('pk')),
             Prefetch('targetcomponents_set__component__componentsynonyms_set'),
         ]
 
@@ -186,48 +215,20 @@ class TargetResource(ChemblModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def build_filters(self, filters=None):
-
-        distinct = False
-        if filters is None:
-            filters = {}
-
-        qs_filters = {}
-
-        if getattr(self._meta, 'queryset', None) is not None:
-            # Get the possible query terms from the current QuerySet.
-            query_terms = self._meta.queryset.query.query_terms
-        else:
-            query_terms = QUERY_TERMS
-
+    def preprocess_filters(self, filters, for_cache_key=False):
+        ret = {}
         for filter_expr, value in filters.items():
             filter_bits = filter_expr.split(LOOKUP_SEP)
             field_name = filter_bits.pop(0)
-            filter_type = 'exact'
 
             if field_name == 'target_synonym':
                 field_name = 'target_components'
                 filter_bits = ['target_component_synonyms', 'component_synonym'] + filter_bits
+                ret[LOOKUP_SEP.join([field_name] + filter_bits)] = value
 
-            if field_name not in self.fields:
-                if filter_expr == 'pk' or filter_expr == self._meta.detail_uri_name:
-                    qs_filters[filter_expr] = value
-                continue
-
-            if len(filter_bits) and filter_bits[-1] in query_terms:
-                filter_type = filter_bits.pop()
-
-            lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
-            if any([x.endswith('_set') for x in lookup_bits]):
-                distinct = True
-                lookup_bits = map(lambda x: x[0:-4] if x.endswith('_set') else x, lookup_bits)
-            value = self.filter_value_to_python(value, field_name, filters, filter_expr, filter_type)
-
-            db_field_name = LOOKUP_SEP.join(lookup_bits)
-            qs_filter = "%s%s%s" % (db_field_name, LOOKUP_SEP, filter_type)
-            qs_filters[qs_filter] = value
-
-        return dict_strip_unicode_keys(qs_filters), distinct
+            else:
+                ret[filter_expr] = value
+        return ret
 
 # ----------------------------------------------------------------------------------------------------------------------
 

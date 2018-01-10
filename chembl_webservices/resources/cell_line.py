@@ -124,7 +124,7 @@ class CellLineResource(ChemblModelResource):
             try:
                 obj, _ = self.cached_obj_get(bundle=base_bundle, **{detail_uri_name: identifier})
                 bundle = self.build_bundle(obj=obj, request=request)
-                bundle = self.full_dehydrate(bundle, for_list=True)
+                bundle = self.full_dehydrate(bundle, for_list=True, **kwargs)
                 objects.append(bundle)
             except (ObjectDoesNotExist, Unauthorized):
                 not_found.append(identifier)

@@ -43,6 +43,15 @@ try:
     from chembl_compatibility.models import MoleculeHierarchy
 except ImportError:
     from chembl_core_model.models import MoleculeHierarchy
+try:
+    from chembl_compatibility.models import CompoundXref
+except ImportError:
+    from chembl_core_model.models import CompoundXref
+try:
+    from chembl_compatibility.models import XrefSource
+except ImportError:
+    from chembl_core_model.models import XrefSource
+
 
 try:
     from haystack.query import SearchQuerySet
@@ -130,6 +139,20 @@ class MoleculeSynonymsResource(ChemblModelResource):
         resource_name = 'synonym'
         collection_name = 'molecule_synonyms'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+class MoleculeXRefResource(ChemblModelResource):
+
+    xref_src = fields.CharField('xref_src_db__pk')
+
+    class Meta(ChemblResourceMeta):
+        queryset = CompoundXref.objects.all()
+        resource_name = 'cross_reference'
+        collection_name = 'cross_references'
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        fields = ('xref_name', 'xref_id', 'xref_src')
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -239,6 +262,8 @@ class MoleculeResource(ChemblModelResource):
                                        'biotherapeutics', full=True, null=True, blank=True)
     atc_classifications = fields.ToManyField('chembl_webservices.resources.atc.AtcResource',
                                              'atcclassification_set', full=False, null=True, blank=True)
+    cross_references = fields.ToManyField('chembl_webservices.resources.molecule.MoleculeXRefResource',
+                                             'compoundxref_set', full=True, null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -274,6 +299,8 @@ _SMILES_.
             Prefetch('compoundproperties'),
             Prefetch('moleculehierarchy'),
             Prefetch('compoundstructures'),
+            Prefetch('compoundxref_set', queryset=CompoundXref.objects.only('pk', 'xref_name', 'xref_id', 'xref_src_db', 'molecule')),
+            Prefetch('compoundxref_set__xref_src_db', queryset=XrefSource.objects.only('pk')),
             Prefetch('moleculehierarchy__parent_molecule', queryset=MoleculeDictionary.objects.only('chembl')),
         ]
 
@@ -284,6 +311,7 @@ _SMILES_.
             'black_box_warning',
             'chebi_par_id',
             'chirality',
+            'cross_references',
             'dosed_ingredient',
             'first_approval',
             'first_in_class',
@@ -330,6 +358,7 @@ _SMILES_.
             'max_phase': NUMBER_FILTERS,
             'molecule_chembl_id': ALL,
             'atc_classifications': ALL_WITH_RELATIONS,
+            'cross_references': ALL_WITH_RELATIONS,
             'molecule_hierarchy': ALL_WITH_RELATIONS,
             'molecule_properties': ALL_WITH_RELATIONS,
             'molecule_structures': ALL_WITH_RELATIONS,
@@ -453,7 +482,7 @@ _SMILES_.
             try:
                 obj, _ = self.cached_obj_get(bundle=base_bundle, **{detail_uri_name: identifier})
                 bundle = self.build_bundle(obj=obj, request=request)
-                bundle = self.full_dehydrate(bundle, for_list=True)
+                bundle = self.full_dehydrate(bundle, for_list=True, **kwargs)
                 objects.append(bundle)
             except (ObjectDoesNotExist, Unauthorized):
                 not_found.append(identifier)
@@ -496,37 +525,20 @@ _SMILES_.
 # ----------------------------------------------------------------------------------------------------------------------
 
     def alter_detail_data_to_serialize(self, request, data):
-        atc = data.data['atc_classifications']
-        for idx, item in enumerate(atc):
-            atc[idx] = item.split('/')[-1]
+        if 'atc_classifications' in data.data:
+            atc = data.data['atc_classifications']
+            for idx, item in enumerate(atc):
+                atc[idx] = item.split('/')[-1]
         return data
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def build_filters(self, filters=None, for_cache_key=False):
-
-        distinct = False
-        if filters is None:
-            filters = {}
-
-        qs_filters = {}
-
-        if getattr(self._meta, 'queryset', None) is not None:
-            # Get the possible query terms from the current QuerySet.
-            query_terms = self._meta.queryset.query.query_terms
-        else:
-            query_terms = QUERY_TERMS
-
+    def preprocess_filters(self, filters, for_cache_key=False):
+        ret = {}
         for filter_expr, value in filters.items():
             filter_bits = filter_expr.split(LOOKUP_SEP)
-            field_name = filter_bits.pop(0)
-            filter_type = 'exact'
-
-            if field_name not in self.fields:
-                if filter_expr == 'pk' or filter_expr == self._meta.detail_uri_name:
-                    qs_filters[filter_expr] = value
+            if filter_expr == 'similarity':
                 continue
-
             if len(filter_bits) and filter_bits[-1] == 'flexmatch':
                 if not value.strip():
                     raise BadRequest("Input string is empty")
@@ -538,63 +550,22 @@ _SMILES_.
                     except ObjectDoesNotExist:
                         raise ImmediateHttpResponse(response=http.HttpNotFound())
                 if not for_cache_key:
-                    pks = CompoundMols.objects.flexmatch(value).values_list('pk', flat=True)
-                    qs_filters["molregno__in"] = pks
-                else:
-                    filter_type = filter_bits.pop()
-                    qs_filter = "%s%s%s" % (field_name, LOOKUP_SEP, filter_type)
-                    qs_filters[qs_filter] = value
-                continue
-
-            if len(filter_bits) and filter_bits[-1] in query_terms:
-                filter_type = filter_bits.pop()
-
-            lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
-            if any([x.endswith('_set') for x in lookup_bits]):
-                distinct = True
-                lookup_bits = map(lambda x: x[0:-4] if x.endswith('_set') else x, lookup_bits)
-            value = self.filter_value_to_python(value, field_name, filters, filter_expr, filter_type)
-
-            db_field_name = LOOKUP_SEP.join(lookup_bits)
-            qs_filter = "%s%s%s" % (db_field_name, LOOKUP_SEP, filter_type)
-            qs_filters[qs_filter] = value
-
-        return dict_strip_unicode_keys(qs_filters), distinct
+                    pks = CompoundMols.objects.flexmatch(value).values_list('molecule__chembl_id', flat=True)
+                    ret["molecule_chembl_id__in"] = pks
+                    continue
+            ret[filter_expr] = value
+        return ret
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def generate_cache_key(self, *args, **kwargs):
+    def _get_cache_args(self, *args, **kwargs):
+        cache_ordered_dict = super(MoleculeResource, self)._get_cache_args(*args, **kwargs)
         smooshed = []
-
-        filters, _ = self.build_filters(kwargs, True)
-
-        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
-        if hasattr(kwargs, 'getlist'):
-            order_bits = kwargs.getlist(parameter_name, [])
-        else:
-            order_bits = kwargs.get(parameter_name, [])
-
-        if isinstance(order_bits, basestring):
-            order_bits = [order_bits]
-
-        limit = kwargs.get('limit', '') if ('list' in args or 'search' in args) else ''
-        offset = kwargs.get('offset', '') if ('list' in args or 'search' in args) else ''
-        query = kwargs.get('q', '') if 'search' in args else ''
-
+        filters, _ = self.build_filters(kwargs, for_cache_key=True)
         for key, value in filters.items():
             smooshed.append("%s=%s" % (key, value))
-
-        if isinstance(query, unicode):
-            query = query.encode('utf-8')
-
-        # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name, self._meta.resource_name, '|'.join(args),
-                                                 str(limit),
-                                                 str(offset),
-                                                 query,
-                                                 '|'.join(order_bits),
-                                                 '|'.join(sorted(smooshed)))
-        return cache_key
+        cache_ordered_dict['filters'] = '|'.join(sorted(smooshed))
+        return cache_ordered_dict
 
 # ----------------------------------------------------------------------------------------------------------------------
 

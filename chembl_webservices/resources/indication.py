@@ -2,7 +2,7 @@ __author__ = 'mnowotka'
 
 from tastypie import fields
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS
-from tastypie.resources import ALL
+from tastypie.resources import ALL, ALL_WITH_RELATIONS
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
@@ -88,6 +88,7 @@ class DrugIndicationResource(ChemblModelResource):
             'mesh_heading': CHAR_FILTERS,
             'efo_id': CHAR_FILTERS,
             'efo_term': CHAR_FILTERS,
+            'indication_refs': ALL_WITH_RELATIONS,
         }
         
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]

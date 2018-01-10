@@ -1,1 +1,1 @@
-{{ object.assay.description }}
+{{ object.assay.description|lower }}

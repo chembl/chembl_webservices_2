@@ -1,1 +1,5 @@
-{{ object.abstract }}
+{{ object.abstract|lower }}
+{{ object.title|lower }}
+{{ object.authors|lower }}
+{{ object.journal|lower }
+{{ object.journal_id.title|lower }

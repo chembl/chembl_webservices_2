@@ -14,6 +14,10 @@ try:
 except ImportError:
     from chembl_core_model.models import Docs
 try:
+    from chembl_compatibility.models import Journals
+except ImportError:
+    from chembl_core_model.models import Journals
+try:
     from chembl_compatibility.models import ChemblIdLookup
 except ImportError:
     from chembl_core_model.models import ChemblIdLookup
@@ -28,6 +32,7 @@ class DocsResource(ChemblModelResource):
 
     document_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
+    journal_full_title = fields.CharField('journal_id__title', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Docs.objects.all()
@@ -37,7 +42,7 @@ class DocsResource(ChemblModelResource):
         collection_name = 'documents'
         detail_uri_name = 'chembl_id'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
-        prefetch_related = []
+        prefetch_related = [Prefetch('journal_id', queryset=Journals.objects.only('pk', 'title'))]
 
         fields = (
             'abstract',
@@ -54,6 +59,7 @@ class DocsResource(ChemblModelResource):
             'volume',
             'year',
             'patent_id',
+            'journal_full_title',
         )
 
         filtering = {
@@ -71,6 +77,7 @@ class DocsResource(ChemblModelResource):
             'volume': CHAR_FILTERS,
             'year': NUMBER_FILTERS,
             'patent_id': CHAR_FILTERS,
+            'journal_full_title': CHAR_FILTERS,
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 

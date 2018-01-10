@@ -115,7 +115,7 @@ class AtcResource(ChemblModelResource):
         if len(objects) == 1:
             object = objects[0]
             bundle = self.build_bundle(obj=object, request=request)
-            bundle = self.full_dehydrate(bundle)
+            bundle = self.full_dehydrate(bundle, **kwargs)
             bundle = self.alter_detail_data_to_serialize(request, bundle)
             return self.create_response(request, bundle)
         else:

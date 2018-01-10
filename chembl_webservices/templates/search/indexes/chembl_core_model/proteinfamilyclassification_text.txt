@@ -1,8 +1,8 @@
-{{ object.l1|default:"" }}
-{{ object.l2|default:"" }}
-{{ object.l3|default:"" }}
-{{ object.l4|default:"" }}
-{{ object.l5|default:"" }}
-{{ object.l6|default:"" }}
-{{ object.l7|default:"" }}
-{{ object.l8|default:"" }}
+{{ object.l1|default:""|lower }}
+{{ object.l2|default:""|lower }}
+{{ object.l3|default:""|lower }}
+{{ object.l4|default:""|lower }}
+{{ object.l5|default:""|lower }}
+{{ object.l6|default:""|lower }}
+{{ object.l7|default:""|lower }}
+{{ object.l8|default:""|lower }}

@@ -16,6 +16,7 @@ from django.core.urlresolvers import NoReverseMatch
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from chembl_webservices.resources.molecule import MoleculeResource
 from tastypie.exceptions import InvalidSortError
+from chembl_webservices.core.utils import list_flatten
 from tastypie.exceptions import ImmediateHttpResponse
 
 try:
@@ -127,26 +128,26 @@ class SimilarityResource(MoleculeResource):
         except DatabaseError as e:
             self._handle_database_error(e, bundle.request, {'smiles': smiles})
 
-        filters = {
-            'chembl__entity_type': 'COMPOUND',
-            'compoundstructures__isnull': False,
-            'pk__in': MoleculeHierarchy.objects.all().values_list('parent_molecule_id'),
-            'compoundproperties__isnull': False,
-        }
+        filters = {}
 
         standard_filters, distinct = self.build_filters(filters=kwargs)
 
         filters.update(standard_filters)
         try:
-            objects = self.get_object_list(bundle.request).filter(**filters).filter(pk__in=[sim[0] for sim in similar])
+            only = filters.get('only')
+            if only:
+                del filters['only']
+                if isinstance(only, basestring):
+                    only = only.split(',')
+                only = list(set(list_flatten(only)))
+            objects = self.get_object_list(bundle.request).filter(pk__in=[sim[0] for sim in similar]).filter(**filters)
+            if only:
+                objects = objects.only(*[self.fields[field].attribute for field in only if field in self.fields and field != 'similarity'])
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
         if distinct:
             objects = objects.distinct()
-        request = bundle.request
-        all_request_params = request.GET.copy()
-        all_request_params.update(request.POST)
-        objects = self.apply_sorting(objects, similarity_map, options=all_request_params)
+        objects = self.apply_sorting(objects, similarity_map, options=kwargs)
         return self.authorized_read_list(objects, bundle)
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -251,13 +252,13 @@ class SimilarityResource(MoleculeResource):
 
         if (order_bits.index('similarity') == 0 if 'similarity' in order_bits else False) or \
                 (order_bits.index('-similarity') == 0 if '-similarity' in order_bits else False):
-            obj_list = self.prefetch_related(obj_list)
+            obj_list = self.prefetch_related(obj_list, **options)
             for obj in obj_list:
                 sim = similarity_map[obj.molregno]
                 obj.similarity = sim
                 similarity_map[obj.molregno] = obj
             vals = [sim for sim in similarity_map.values() if type(sim) == MoleculeDictionary]
-            return vals if 'similarity' in order_bits else list(reversed(vals))
+            return list(reversed(vals)) if '-similarity' in order_bits else vals
 
         else:
 
@@ -284,7 +285,7 @@ class SimilarityResource(MoleculeResource):
                 order_by_args.append("%s%s" % (order, LOOKUP_SEP.join([self.fields[field_name].attribute] +
                                                                       order_by_bits[1:])))
 
-            obj_list = self.prefetch_related(obj_list.order_by(*order_by_args))
+            obj_list = self.prefetch_related(obj_list.order_by(*order_by_args), **options)
             for obj in obj_list:
                 obj.similarity = similarity_map[obj.molregno]
             return obj_list
@@ -307,8 +308,8 @@ class SimilarityResource(MoleculeResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def generate_cache_key(self, *args, **kwargs):
-        smooshed = []
+    def _get_cache_args(self, *args, **kwargs):
+        cache_ordered_dict = super(SimilarityResource, self)._get_cache_args(*args, **kwargs)
 
         pk = kwargs.get('smiles', None)
         if not pk:
@@ -318,31 +319,9 @@ class SimilarityResource(MoleculeResource):
 
         similarity = kwargs.get('similarity', 0)
 
-        fil = {k: v for k, v in kwargs.iteritems() if k not in
-               ('smiles', 'standard_inchi_key', 'chembl_id', 'similarity', 'bundle')}
+        cache_ordered_dict['limit'] = pk
+        cache_ordered_dict['offset'] = str(similarity)
 
-        filters, _ = self.build_filters(fil)
-
-        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
-        if hasattr(kwargs, 'getlist'):
-            order_bits = kwargs.getlist(parameter_name, [])
-        else:
-            order_bits = kwargs.get(parameter_name, [])
-
-        if isinstance(order_bits, basestring):
-            order_bits = [order_bits]
-
-        for key, value in filters.items():
-            smooshed.append("%s=%s" % (key, value))
-
-        # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
-                                              self._meta.resource_name,
-                                              '|'.join(args),
-                                              pk,
-                                              str(similarity),
-                                              '|'.join(order_bits),
-                                              '|'.join(sorted(smooshed)))
-        return cache_key
+        return cache_ordered_dict
 
 # ----------------------------------------------------------------------------------------------------------------------

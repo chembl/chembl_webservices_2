@@ -194,7 +194,7 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
 
         else:
             bundle = self.build_bundle(obj=obj, request=request)
-            bundle = self.full_dehydrate(bundle)
+            bundle = self.full_dehydrate(bundle, **kwargs)
             bundle = self.alter_detail_data_to_serialize(request, bundle)
             return bundle, in_cache
 
@@ -291,50 +291,17 @@ class CompoundStructuralAlertsResource(ChemblModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def generate_cache_key(self, *args, **kwargs):
+    def _get_cache_args(self, *args, **kwargs):
+        cache_ordered_dict = super(CompoundStructuralAlertsResource, self)._get_cache_args(*args, **kwargs)
 
-        smooshed = []
+        cache_ordered_dict['format'] = str(kwargs.get('format', 'png'))
+        cache_ordered_dict['engine'] = str(kwargs.get('engine', 'rdkit'))
+        cache_ordered_dict['dimensions'] = str(kwargs.get('dimensions', 500))
+        cache_ordered_dict['ignoreCoords'] = str(kwargs.get("ignoreCoords", False))
+        cache_ordered_dict['is_ajax'] = str(kwargs.get("is_ajax", 2))
+        cache_ordered_dict['bgColor'] = kwargs.get('bgColor', '').lower()
 
-        filters, _ = self.build_filters(kwargs)
-
-        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
-        if hasattr(kwargs, 'getlist'):
-            order_bits = kwargs.getlist(parameter_name, [])
-        else:
-            order_bits = kwargs.get(parameter_name, [])
-
-        if isinstance(order_bits, basestring):
-            order_bits = [order_bits]
-
-        limit = kwargs.get('limit', '') if ('list' in args or 'search' in args) else ''
-        offset = kwargs.get('offset', '') if ('list' in args or 'search' in args) else ''
-        bgColor = kwargs.get('bgColor', '').lower()
-        format = kwargs.get('format', 'png')
-        engine = kwargs.get('engine', 'rdkit')
-        dimensions = kwargs.get('dimensions', 500)
-        ignoreCoords = kwargs.get("ignoreCoords", False)
-        is_ajax = kwargs.get("is_ajax", 2)
-
-        for key, value in filters.items():
-            smooshed.append("%s=%s" % (key, value))
-
-        # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % \
-                    (self._meta.api_name,
-                     self._meta.resource_name,
-                     '|'.join(args),
-                     str(limit),
-                     str(offset),
-                     '|'.join(order_bits),
-                     '|'.join(sorted(smooshed)),
-                     str(format),
-                     str(engine),
-                     str(dimensions),
-                     str(ignoreCoords),
-                     str(is_ajax),
-                     bgColor)
-        return cache_key
-
+        return cache_ordered_dict
 
 # ----------------------------------------------------------------------------------------------------------------------
 

@@ -1,1 +1,1 @@
-{{ object.pref_name }}
+{{ object.pref_name|lower }}

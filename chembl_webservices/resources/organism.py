@@ -7,6 +7,9 @@ from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
 from django.db.models import Prefetch
+from django.db.models.constants import LOOKUP_SEP
+from django.db.models.sql.constants import QUERY_TERMS
+from tastypie.utils import dict_strip_unicode_keys
 
 try:
     from chembl_compatibility.models import OrganismClass
@@ -34,7 +37,7 @@ class OrganismSynonymsResource(ChemblModelResource):
         collection_name = 'synonyms'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         filtering = {
-            'synonyms': CHAR_FILTERS,
+            'synonyms': ALL_WITH_RELATIONS,
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
@@ -78,7 +81,22 @@ class OrganismResource(ChemblModelResource):
     def alter_detail_data_to_serialize(self, request, bundle):
 
         datas = bundle.data
-        datas['l4_synonyms'] = list(set([x.data['synonyms'] for x in datas['l4_synonyms']]))
+        if 'l4_synonyms' in datas:
+            datas['l4_synonyms'] = list(set([x.data['synonyms'] for x in datas['l4_synonyms']]))
         return bundle
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def preprocess_filters(self, filters, for_cache_key=False):
+        ret = {}
+        for filter_expr, value in filters.items():
+            filter_bits = filter_expr.split(LOOKUP_SEP)
+            field_name = filter_bits.pop(0)
+            if field_name == 'l4_synonyms' and (not filter_bits or filter_bits[0] != 'synonyms'):
+                filter_bits = ['synonyms'] + filter_bits
+                ret[LOOKUP_SEP.join([field_name] + filter_bits)] = value
+            else:
+                ret[filter_expr] = value
+        return ret
 
 # ----------------------------------------------------------------------------------------------------------------------

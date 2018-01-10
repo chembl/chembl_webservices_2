@@ -6,6 +6,7 @@ from django.conf.urls import url
 from django.core.urlresolvers import NoReverseMatch
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from chembl_webservices.resources.molecule import MoleculeResource
+from chembl_webservices.core.utils import list_flatten
 import itertools
 from django.conf import settings
 
@@ -108,25 +109,21 @@ class SubstructureResource(MoleculeResource):
 
         mols = CompoundMols.objects.with_substructure(smiles).defer('molfile').values_list('molecule_id', flat=True)
 
-        filters = {
-            'chembl__entity_type': 'COMPOUND',
-            'compoundstructures__isnull': False,
-            'pk__in': MoleculeHierarchy.objects.all().values_list('parent_molecule_id'),
-            'compoundproperties__isnull': False,
-        }
+        filters = {}
 
         standard_filters, distinct = self.build_filters(filters=kwargs)
 
         filters.update(standard_filters)
-        try:
-            objects = self.get_object_list(bundle.request).filter(**filters).filter(pk__in=mols)
-        except TypeError as e:
-            if e.message.startswith('Related Field has invalid lookup:'):
-                raise BadRequest(e.message)
-            else:
-                raise e
-        except ValueError:
-            raise BadRequest("Invalid resource lookup data provided (mismatched type).")
+
+        only = filters.get('only')
+        if only:
+            del filters['only']
+            if isinstance(only, basestring):
+                only = only.split(',')
+            only = list(set(list_flatten(only)))
+        objects = self.get_object_list(bundle.request).filter(pk__in=mols).filter(**filters)
+        if only:
+            objects = objects.only(*[self.fields[field].attribute for field in only if field in self.fields])
         if distinct:
             objects = objects.distinct()
         return self.authorized_read_list(objects, bundle)
@@ -150,39 +147,12 @@ class SubstructureResource(MoleculeResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def generate_cache_key(self, *args, **kwargs):
-        smooshed = []
-
+    def _get_cache_args(self, *args, **kwargs):
+        cache_ordered_dict = super(SubstructureResource, self)._get_cache_args(*args, **kwargs)
         identifier = kwargs.get('smiles') or kwargs.get('standard_inchi_key') or kwargs.get('chembl_id')
         if not identifier:
             raise BadRequest("Structure or identifier required.")
-
-        filters, _ = self.build_filters(kwargs)
-
-        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
-        if hasattr(kwargs, 'getlist'):
-            order_bits = kwargs.getlist(parameter_name, [])
-        else:
-            order_bits = kwargs.get(parameter_name, [])
-
-        if isinstance(order_bits, basestring):
-            order_bits = [order_bits]
-
-        limit = kwargs.get('limit', '') if 'list' in args else ''
-        offset = kwargs.get('offset', '') if 'list' in args else ''
-
-        for key, value in filters.items():
-            smooshed.append("%s=%s" % (key, value))
-
-        # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
-                                                 self._meta.resource_name,
-                                                 '|'.join(args),
-                                                 str(identifier),
-                                                 str(limit),
-                                                 str(offset),
-                                                 '|'.join(order_bits),
-                                                 '|'.join(sorted(smooshed)))
-        return cache_key
+        cache_ordered_dict['identifier'] = str(identifier)
+        return cache_ordered_dict
 
 # ----------------------------------------------------------------------------------------------------------------------

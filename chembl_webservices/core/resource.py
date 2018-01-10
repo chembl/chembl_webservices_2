@@ -13,6 +13,7 @@ from tastypie.exceptions import BadRequest
 from tastypie.exceptions import UnsupportedFormat
 from tastypie.exceptions import Unauthorized
 from tastypie.exceptions import ImmediateHttpResponse
+from tastypie.exceptions import InvalidFilterError
 from tastypie.resources import ModelResource
 from tastypie.resources import convert_post_to_put
 from tastypie.utils import dict_strip_unicode_keys
@@ -36,6 +37,8 @@ from django.db.models.constants import LOOKUP_SEP
 from django.db.models.sql.constants import QUERY_TERMS
 from django.db import DatabaseError
 from chembl_webservices.core.utils import represents_int
+from chembl_webservices.core.utils import list_flatten
+from chembl_webservices.core.utils import unpack_request_params
 
 try:
     from haystack.query import SearchQuerySet
@@ -92,18 +95,6 @@ class ChemblModelResource(ModelResource):
                 request.format in self._meta.serializer.formats):
             return self._meta.serializer.get_mime_for_format(request.format)
         return super(ChemblModelResource, self).determine_format(request)
-
-# ----------------------------------------------------------------------------------------------------------------------
-
-    def flatten_django_lists(self, lists):
-        ret = []
-        for x in lists:
-            first, second = x
-            if type(second) == list and len(second) == 1 and isinstance(second[0], basestring):
-                ret.append((first, second[0]))
-            else:
-                ret.append(x)
-        return ret
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -258,13 +249,13 @@ class ChemblModelResource(ModelResource):
                 request.POST.dict()  # touch this dict here to populate data, strange problem with Django...
 
                 if request.method == 'GET':
-                    kwargs.update(dict(self.flatten_django_lists(request.GET.lists())))
+                    kwargs.update(dict(unpack_request_params(request.GET.lists())))
 
                 elif request.method == 'POST':
                     post_arg = dict()
                     if request.META.get('CONTENT_TYPE', 'application/json').startswith(
                         ('multipart/form-data', 'multipart/form-data')):
-                        post_arg = dict(self.flatten_django_lists(request.POST.lists()))
+                        post_arg = dict(unpack_request_params(request.POST.lists()))
                     elif request.body:
                         post_arg = self.deserialize(request, request.body,
                                                     format=request.META.get('CONTENT_TYPE', 'application/json'))
@@ -585,12 +576,12 @@ class ChemblModelResource(ModelResource):
             return self._meta.queryset.none()
 
         queryset = getattr(self._meta, 'haystack_queryset', self._meta.queryset)
-        res = self.get_search_results(user_query)
+        res = self.get_search_results(user_query.lower())
         filters = {}
 
         if hasattr(bundle.request, 'GET'):
             # Grab a mutable copy.
-            filters = dict(self.flatten_django_lists(bundle.request.GET.lists()))
+            filters = dict(unpack_request_params(bundle.request.GET.lists()))
 
         # Update with the provided kwargs.
         filters.update(kwargs)
@@ -605,7 +596,7 @@ class ChemblModelResource(ModelResource):
                 to_defer = [f.name for f in objects.model._meta.fields if 'TextField' in f.__class__.__name__]
                 objects = objects.defer(*to_defer).distinct()
             objects = self.authorized_read_list(objects, bundle)
-            objects = self.prefetch_related(objects)
+            objects = self.prefetch_related(objects, **kwargs)
             if res.keys() and isinstance(res.keys()[0], int):
                 for obj in objects:
                     obj.score = float(int(res[obj.pk]))
@@ -634,7 +625,7 @@ class ChemblModelResource(ModelResource):
     def list_source(self, bundle, **kwargs):
         objects = self.obj_get_list(bundle=bundle, **kwargs)
         sorted_objects = self.apply_sorting(objects, options=kwargs)
-        sorted_objects = self.prefetch_related(sorted_objects)
+        sorted_objects = self.prefetch_related(sorted_objects, **kwargs)
         return sorted_objects
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -714,20 +705,24 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def full_dehydrate(self, bundle, for_list=False, for_search=False):
+    def full_dehydrate(self, bundle, for_list=False, for_search=False, **kwargs):
         """
         Given a bundle with an object instance, extract the information from it
         to populate the resource.
         """
-
         if not for_search:
             use_in = ['all', 'list' if for_list else 'detail']
         else:
             use_in = ['all', 'search']
+        only = kwargs.get('only')
+        if only and isinstance(only, basestring):
+            only = [x.strip() for x in only.split(',')]
 
         # Dehydrate each field.
         for field_name, field_object in self.fields.items():
             # If it's not for use in this mode, skip
+            if only and all([field_name not in x for x in only]):
+                continue
             field_use_in = getattr(field_object, 'use_in', 'all')
             if callable(field_use_in):
                 if not field_use_in(bundle):
@@ -765,7 +760,7 @@ class ChemblModelResource(ModelResource):
 
             for obj in to_be_serialized[self._meta.collection_name]:
                 bundle = self.build_bundle(obj=obj, request=request)
-                bundles.append(self.full_dehydrate(bundle, for_list=for_list, for_search=for_search))
+                bundles.append(self.full_dehydrate(bundle, for_list=for_list, for_search=for_search, **kwargs))
 
             to_be_serialized[self._meta.collection_name] = bundles
             to_be_serialized = self.alter_list_data_to_serialize(request, to_be_serialized)
@@ -820,7 +815,7 @@ class ChemblModelResource(ModelResource):
             return http.HttpMultipleChoices("More than one resource is found at this URI.")
 
         bundle = self.build_bundle(obj=obj, request=request)
-        bundle = self.full_dehydrate(bundle)
+        bundle = self.full_dehydrate(bundle, **kwargs)
         bundle = self.alter_detail_data_to_serialize(request, bundle)
 
         return bundle, in_cache
@@ -863,11 +858,17 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def build_filters(self, filters=None):
+    def preprocess_filters(self, filters, for_cache_key=False):
+        return filters
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def build_filters(self, filters=None, ignore_bad_filters=False, for_cache_key=False):
 
         distinct = False
         if filters is None:
             filters = {}
+        filters = self.preprocess_filters(filters, for_cache_key)
 
         qs_filters = {}
 
@@ -885,12 +886,28 @@ class ChemblModelResource(ModelResource):
             if not field_name in self.fields:
                 if filter_expr == 'pk' or filter_expr == self._meta.detail_uri_name:
                     qs_filters[filter_expr] = value
+                elif filter_expr == 'only':
+                    if isinstance(value, basestring):
+                        value = [x.strip() for x in value.split(',')]
+                    if filter_expr in qs_filters:
+                        qs_filters[filter_expr].extend(value)
+                    else:
+                        qs_filters[filter_expr] = [value]
                 continue
 
             if len(filter_bits) and filter_bits[-1] in query_terms:
                 filter_type = filter_bits.pop()
 
-            lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
+            try:
+                lookup_bits = self.check_filtering(field_name, filter_type, filter_bits)
+            except InvalidFilterError:
+                if ignore_bad_filters:
+                    continue
+                elif for_cache_key:
+                    qs_filters[filter_expr] = value
+                    continue
+                else:
+                    raise
             if any([x.endswith('_set') for x in lookup_bits]):
                 distinct = True
                 lookup_bits = map(lambda x: x[0:-4] if x.endswith('_set') else x, lookup_bits)
@@ -904,8 +921,21 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def prefetch_related(self, objects):
+    def prefetch_related(self, objects, **kwargs):
+        only = kwargs.get('only')
+        if only and not isinstance(only, list):
+            only = [x.strip().split(LOOKUP_SEP)[0] for x in only.split(',')]
         related_fields = getattr(self._meta, 'prefetch_related', None)
+        if only:
+            only = list_flatten(only)
+            only_related = set([self.fields[field].attribute for field in only if ((field in self.fields) and
+                                                                                   (getattr(self.fields[field], 'is_related', False)))])
+            related_attrs = set([field if isinstance(field, str) else
+                                 field.prefetch_through for field in related_fields])
+            intersection = only_related & related_attrs
+            if intersection:
+                return objects.prefetch_related(*list(intersection))
+            return objects
         if not related_fields:
             return objects
         return objects.prefetch_related(*self._meta.prefetch_related)
@@ -925,7 +955,7 @@ class ChemblModelResource(ModelResource):
             if distinct:
                 to_defer = [f.name for f in object_list.model._meta.fields if 'TextField' in f.__class__.__name__]
                 object_list = object_list.defer(*to_defer).distinct()
-            object_list = self.prefetch_related(object_list)
+            object_list = self.prefetch_related(object_list, **kwargs)
             stringified_kwargs = ', '.join(["%s=%s" % (k, v) for k, v in kwargs.items()])
 
             if len(object_list) <= 0:
@@ -944,10 +974,18 @@ class ChemblModelResource(ModelResource):
 # ----------------------------------------------------------------------------------------------------------------------
 
     def chain_filters(self, query, applicable_filters):
+        only = applicable_filters.get('only')
+        if only:
+            del applicable_filters['only']
+            if isinstance(only, basestring):
+                only = only.split(',')
+            only = list(set(list_flatten(only)))
         ret = query
         list_filters = self.normalise_filters(applicable_filters)
         for filtr in list_filters:
             ret = ret.filter(**filtr)
+        if only:
+            ret = ret.only(*[self.fields[field].attribute for field in only if field in self.fields])
         return ret
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -1000,7 +1038,7 @@ class ChemblModelResource(ModelResource):
 
         if hasattr(bundle.request, 'GET'):
             # Grab a mutable copy.
-            filters = dict(self.flatten_django_lists(bundle.request.GET.lists()))
+            filters = dict(unpack_request_params(bundle.request.GET.lists()))
 
         # Update with the provided kwargs.
         filters.update(kwargs)
@@ -1082,7 +1120,7 @@ class ChemblModelResource(ModelResource):
             try:
                 obj, _ = self.cached_obj_get(bundle=base_bundle, **{self._meta.detail_uri_name: identifier})
                 bundle = self.build_bundle(obj=obj, request=request)
-                bundle = self.full_dehydrate(bundle, for_list=True)
+                bundle = self.full_dehydrate(bundle, for_list=True, **kwargs)
                 objects.append(bundle)
             except (ObjectDoesNotExist, Unauthorized):
                 not_found.append(identifier)
@@ -1149,7 +1187,10 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def generate_cache_key(self, *args, **kwargs):
+    def _get_cache_args(self, *args, **kwargs):
+        from collections import OrderedDict
+
+        cache_ordered_dict = OrderedDict()
         smooshed = []
 
         filters, _ = self.build_filters(kwargs)
@@ -1166,6 +1207,7 @@ class ChemblModelResource(ModelResource):
         limit = kwargs.get('limit', '') if ('list' in args or 'search' in args) else ''
         offset = kwargs.get('offset', '') if ('list' in args or 'search' in args) else ''
         query = kwargs.get('q', '') if 'search' in args else ''
+        only = kwargs.get('only', '')
 
         for key, value in filters.items():
             smooshed.append("%s=%s" % (key, value))
@@ -1173,15 +1215,24 @@ class ChemblModelResource(ModelResource):
         if isinstance(query, unicode):
             query = query.encode('utf-8')
 
-        # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
-                                                 self._meta.resource_name,
-                                                 '|'.join(args),
-                                                 str(limit),
-                                                 str(offset),
-                                                 query,
-                                                 '|'.join(order_bits),
-                                                 '|'.join(sorted(smooshed)))
-        return cache_key
+        cache_ordered_dict['api_name'] = self._meta.api_name
+        cache_ordered_dict['resource_name'] = self._meta.resource_name
+        cache_ordered_dict['args'] = '|'.join(args)
+        cache_ordered_dict['limit'] = str(limit)
+        cache_ordered_dict['offset'] = str(offset)
+        cache_ordered_dict['only'] = str(only)
+        cache_ordered_dict['query'] = query
+        cache_ordered_dict['order'] = '|'.join(order_bits)
+        cache_ordered_dict['filters'] = '|'.join(sorted(smooshed))
+
+        return cache_ordered_dict
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+    def generate_cache_key(self, *args, **kwargs):
+
+        cache_ordered_dict = self._get_cache_args(*args, **kwargs)
+        ret = ':'.join(str(x) for x in cache_ordered_dict.values())
+        return ret
 
 # ----------------------------------------------------------------------------------------------------------------------

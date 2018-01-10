@@ -79,7 +79,7 @@ class TargetRelationsResource(ChemblModelResource):
         if len(objects) == 1:
             object = objects[0]
             bundle = self.build_bundle(obj=object, request=request)
-            bundle = self.full_dehydrate(bundle)
+            bundle = self.full_dehydrate(bundle, **kwargs)
             bundle = self.alter_detail_data_to_serialize(request, bundle)
             return self.create_response(request, bundle)
         else:
@@ -87,7 +87,7 @@ class TargetRelationsResource(ChemblModelResource):
 
             for ob in obj[self._meta.collection_name]:
                 bundle = self.build_bundle(obj=ob, request=request)
-                bundles.append(self.full_dehydrate(bundle, for_list=True))
+                bundles.append(self.full_dehydrate(bundle, for_list=True, **kwargs))
 
             obj[self._meta.collection_name] = bundles
             obj = self.alter_list_data_to_serialize(request, obj)

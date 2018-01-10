@@ -168,7 +168,7 @@ class MoleculeFormsResource(ChemblModelResource):
 
         for ob in obj[self._meta.collection_name]:
             bundle = self.build_bundle(obj=ob, request=request)
-            bundles.append(self.full_dehydrate(bundle, for_list=True))
+            bundles.append(self.full_dehydrate(bundle, for_list=True, **kwargs))
 
         obj[self._meta.collection_name] = bundles
         obj = self.alter_list_data_to_serialize(request, obj)
@@ -202,7 +202,7 @@ class MoleculeFormsResource(ChemblModelResource):
             try:
                 obj, _ = self.cached_obj_get(bundle=base_bundle, **{self._meta.detail_uri_name: identifier})
                 bundle = self.build_bundle(obj=obj, request=request)
-                bundle = self.full_dehydrate(bundle, for_list=True)
+                bundle = self.full_dehydrate(bundle, for_list=True, **kwargs)
                 bundle = self.alter_detail_data_to_serialize(request, bundle)
                 objects.append(bundle)
             except (ObjectDoesNotExist, Unauthorized):
@@ -262,36 +262,10 @@ class MoleculeFormsResource(ChemblModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def generate_cache_key(self, *args, **kwargs):
-        smooshed = []
-
+    def _get_cache_args(self, *args, **kwargs):
+        cache_ordered_dict = super(MoleculeFormsResource, self)._get_cache_args(*args, **kwargs)
         mode = ['detail'] if 'detail' in kwargs else args
-
-        filters, _ = self.build_filters(kwargs)
-
-        parameter_name = 'order_by' if 'order_by' in kwargs else 'sort_by'
-        if hasattr(kwargs, 'getlist'):
-            order_bits = kwargs.getlist(parameter_name, [])
-        else:
-            order_bits = kwargs.get(parameter_name, [])
-
-        if isinstance(order_bits, basestring):
-            order_bits = [order_bits]
-
-        limit = kwargs.get('limit', '') if 'list' in args else ''
-        offset = kwargs.get('offset', '') if 'list' in args else ''
-
-        for key, value in filters.items():
-            smooshed.append("%s=%s" % (key, value))
-
-        # Use a list plus a ``.join()`` because it's faster than concatenation.
-        cache_key = "%s:%s:%s:%s:%s:%s:%s" % (self._meta.api_name,
-                                              self._meta.resource_name,
-                                              '|'.join(mode),
-                                              str(limit),
-                                              str(offset),
-                                              '|'.join(order_bits),
-                                              '|'.join(sorted(smooshed)))
-        return cache_key
+        cache_ordered_dict['args'] = '|'.join(mode)
+        return cache_ordered_dict
 
 # ----------------------------------------------------------------------------------------------------------------------

@@ -73,6 +73,8 @@ class MetabolismResource(ChemblModelResource):
     target_chembl_id = fields.CharField('target__chembl_id', null=True, blank=True)
     metabolism_refs = fields.ToManyField('chembl_webservices.resources.metabolism.MetabolismRefsResource',
                                          'metabolismrefs_set', full=True, null=True, blank=True)
+    substrate_name = fields.CharField('substrate_record__compound_key')
+    metabolite_name = fields.CharField('metabolite_record__compound_key')
 
     class Meta(ChemblResourceMeta):
         queryset = Metabolism.objects.all()
@@ -82,11 +84,11 @@ class MetabolismResource(ChemblModelResource):
         detail_uri_name = 'met_id'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         prefetch_related = [
-            Prefetch('drug_record', queryset=CompoundRecords.objects.only('molecule')),
+            Prefetch('drug_record', queryset=CompoundRecords.objects.only('molecule', 'compound_key')),
             Prefetch('drug_record__molecule', queryset=MoleculeDictionary.objects.only('chembl')),
-            Prefetch('substrate_record', queryset=CompoundRecords.objects.only('molecule')),
+            Prefetch('substrate_record', queryset=CompoundRecords.objects.only('molecule', 'compound_key')),
             Prefetch('substrate_record__molecule', queryset=MoleculeDictionary.objects.only('chembl')),
-            Prefetch('metabolite_record', queryset=CompoundRecords.objects.only('molecule')),
+            Prefetch('metabolite_record', queryset=CompoundRecords.objects.only('molecule', 'compound_key')),
             Prefetch('metabolite_record__molecule', queryset=MoleculeDictionary.objects.only('chembl')),
             Prefetch('target', queryset=TargetDictionary.objects.only('chembl')),
             Prefetch('metabolismrefs_set', queryset=MetabolismRefs.objects.only('metref_id', 'metabolism', 'ref_type', 'ref_id', 'ref_url')),
@@ -106,6 +108,8 @@ class MetabolismResource(ChemblModelResource):
             'tax_id',
             'met_comment',
             'metabolism_refs',
+            'substrate_name',
+            'metabolite_name',
         )
 
         filtering = {
@@ -121,6 +125,8 @@ class MetabolismResource(ChemblModelResource):
             'organism': CHAR_FILTERS,
             'tax_id': NUMBER_FILTERS,
             'met_comment': CHAR_FILTERS,
+            'substrate_name': CHAR_FILTERS,
+            'metabolite_name': CHAR_FILTERS,
         }
 
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]

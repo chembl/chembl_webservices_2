@@ -29,6 +29,7 @@ except:
 
 try:
     import indigo
+    from indigo import IndigoException
     import indigo_renderer
     indigoObj = indigo.Indigo()
 except ImportError:
@@ -333,8 +334,12 @@ def render_rdkit_legacy(mol, highlight, options, frmt, size, colors, legend):
 
 def highlight_substructure_rdkit(molstring, smarts):
     mol = Chem.MolFromMolBlock(str(molstring), sanitize=True)
+    if not mol:
+        return
     mol.UpdatePropertyCache(strict=False)
     patt = Chem.MolFromSmarts(str(smarts))
+    if not patt:
+        return
     Chem.GetSSSR(patt)
     Chem.GetSSSR(mol)
     match = mol.HasSubstructMatch(patt)
@@ -348,9 +353,12 @@ def highlight_substructure_rdkit(molstring, smarts):
 
 def highlight_substructure_indigo(molstring, smarts):
 
-    mol = indigoObj.loadMolecule(str(molstring))
-    patt = indigoObj.loadSmarts(str(smarts))
-    match = indigoObj.substructureMatcher(mol).match(patt)
+    try:
+        mol = indigoObj.loadMolecule(str(molstring))
+        patt = indigoObj.loadSmarts(str(smarts))
+        match = indigoObj.substructureMatcher(mol).match(patt)
+    except IndigoException:
+        return
     if not match:
         return
     return match.highlightedTarget()
@@ -364,5 +372,31 @@ def represents_int(s):
         return True
     except ValueError:
         return False
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+def list_flatten(l, a=None):
+    if a is None:
+        a = []
+    for i in l:
+        if isinstance(i, list):
+            list_flatten(i, a)
+        else:
+            a.append(i)
+    return a
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
+def unpack_request_params(params):
+    ret = []
+    for x in params:
+        first, second = x
+        if type(second) == list and len(second) == 1 and isinstance(second[0], basestring):
+            ret.append((first, second[0]))
+        else:
+            ret.append(x)
+    return ret
 
 # ----------------------------------------------------------------------------------------------------------------------

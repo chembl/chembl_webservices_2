@@ -1,5 +1,6 @@
 __author__ = 'mnowotka'
 
+from collections import defaultdict
 from tastypie.serializers import Serializer
 from tastypie.exceptions import UnsupportedFormat
 from tastypie.bundle import Bundle
@@ -7,6 +8,7 @@ from simplejson import JSONDecodeError
 from tastypie.exceptions import BadRequest
 import urlparse
 import logging
+import json
 
 try:
     import defusedxml.lxml as lxml
@@ -17,7 +19,7 @@ except ImportError:
     lxml = None
 
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
 def valid_xml_char_ordinal(c):
     codepoint = ord(c)
@@ -29,7 +31,7 @@ def valid_xml_char_ordinal(c):
         0x10000 <= codepoint <= 0x10FFFF
         )
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
 class ChEMBLApiSerializer(Serializer):
 
@@ -49,7 +51,7 @@ class ChEMBLApiSerializer(Serializer):
         self.log = logging.getLogger(__name__)
         super(ChEMBLApiSerializer, self).__init__()
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def get_mime_for_format(self, format):
         """
@@ -63,7 +65,7 @@ class ChEMBLApiSerializer(Serializer):
         except KeyError:
             return ''
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def deserialize(self, content, format='application/json', tag=None):
         """
@@ -94,7 +96,22 @@ class ChEMBLApiSerializer(Serializer):
                 raise BadRequest('%s is not serialised using %s format' % (content, desired_format))
         return deserialized
 
-#-----------------------------------------------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------------------
+
+    def from_json(self, content):
+        """
+        Given some JSON data, returns a Python dictionary of the decoded data.
+        """
+        try:
+            ret = json.loads(content)
+        except ValueError:
+            raise BadRequest('Request is not valid JSON.')
+        qs = defaultdict(list)
+        for k, v in ret:
+            qs[k].append(v)
+        return dict((k, v if len(v) > 1 else v[0]) for k, v in qs.items())
+
+# ----------------------------------------------------------------------------------------------------------------------
 
     def from_urlencode(self, data, options=None):
 
@@ -102,12 +119,12 @@ class ChEMBLApiSerializer(Serializer):
                   for k, v in urlparse.parse_qs(data).iteritems())
         return qs
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def to_urlencode(self, content):
         pass
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
 
     def to_etree(self, data, options=None, name=None, depth=0):
         """
@@ -169,4 +186,4 @@ class ChEMBLApiSerializer(Serializer):
 
         return element
 
-#-----------------------------------------------------------------------------------------------------------------------
+# ----------------------------------------------------------------------------------------------------------------------
