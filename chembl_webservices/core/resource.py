@@ -926,7 +926,7 @@ class ChemblModelResource(ModelResource):
         if only and not isinstance(only, list):
             only = [x.strip().split(LOOKUP_SEP)[0] for x in only.split(',')]
         related_fields = getattr(self._meta, 'prefetch_related', None)
-        if only:
+        if only and all([not self.fields[field].is_m2m for field in only if field in self.fields]):
             only = list_flatten(only)
             only_related = set([self.fields[field].attribute for field in only if ((field in self.fields) and
                                                                                    (getattr(self.fields[field], 'is_related', False)))])
@@ -984,7 +984,7 @@ class ChemblModelResource(ModelResource):
         list_filters = self.normalise_filters(applicable_filters)
         for filtr in list_filters:
             ret = ret.filter(**filtr)
-        if only:
+        if only and all([not self.fields[field].is_m2m for field in only if field in self.fields]):
             ret = ret.only(*[self.fields[field].attribute for field in only if field in self.fields])
         return ret
 
