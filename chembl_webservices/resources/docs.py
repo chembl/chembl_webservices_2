@@ -32,6 +32,7 @@ class DocsResource(ChemblModelResource):
 
     document_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
+    src_id = fields.IntegerField('src_id', null=True, blank=True)
     journal_full_title = fields.CharField('journal_id__title', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
@@ -50,11 +51,13 @@ class DocsResource(ChemblModelResource):
             'doc_type',
             'document_chembl_id',
             'doi',
+            'doi_chembl',
             'first_page',
             'issue',
             'journal',
             'last_page',
             'pubmed_id',
+            'src_id',
             'title',
             'volume',
             'year',
@@ -68,6 +71,7 @@ class DocsResource(ChemblModelResource):
             'doc_type': CHAR_FILTERS,
             'document_chembl_id': NUMBER_FILTERS,
             'doi': CHAR_FILTERS,
+            'doi_chembl': CHAR_FILTERS,
             'first_page': CHAR_FILTERS,
             'issue': CHAR_FILTERS,
             'journal': CHAR_FILTERS,
