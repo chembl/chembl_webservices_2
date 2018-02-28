@@ -17,6 +17,10 @@ try:
 except ImportError:
     from chembl_core_model.models import ComponentSynonyms
 try:
+    from chembl_compatibility.models import ComponentXref
+except ImportError:
+    from chembl_core_model.models import ComponentXref
+try:
     from chembl_compatibility.models import TargetComponents
 except ImportError:
     from chembl_core_model.models import TargetComponents
@@ -107,6 +111,8 @@ class TargetComponentsResource(ChemblModelResource):
         'proteinclassification_set', full=True, null=True, blank=True)
     target_component_synonyms = fields.ToManyField('chembl_webservices.resources.target.TargetComponentSynonyms',
                                                    'componentsynonyms_set', full=True, null=True, blank=True)
+    target_component_xrefs = fields.ToManyField('chembl_webservices.resources.target.TargetComponentXrefResource',
+                                                   'componentxref_set', full=True, null=True, blank=True)
     targets = fields.ToManyField(
         'chembl_webservices.resources.target_components.TargetDictionaryResource',
         'targetdictionary_set', full=True, null=True, blank=True)
@@ -128,6 +134,7 @@ class TargetComponentsResource(ChemblModelResource):
                      queryset=ProteinClassification.objects.only('protein_class_id')),
             Prefetch('componentsynonyms_set',
                      queryset=ComponentSynonyms.objects.only('component_synonym', 'syn_type', 'compsyn_id', 'component')),
+            Prefetch('componentxref_set'),
             Prefetch('targetdictionary_set',
                      queryset=TargetDictionary.objects.only('chembl_id')),
             Prefetch('componentgo_set'),
