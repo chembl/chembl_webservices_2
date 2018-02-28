@@ -28,5 +28,6 @@ class SourceResource(ChemblModelResource):
             'src_short_name': CHAR_FILTERS,
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
+        excludes = ['default_doc_id', 'default_loadtype']
 
 # ----------------------------------------------------------------------------------------------------------------------
