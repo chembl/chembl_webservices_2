@@ -38,6 +38,10 @@ try:
 except ImportError:
     from chembl_core_model.models import ComponentSynonyms
 try:
+    from chembl_compatibility.models import ComponentXref
+except ImportError:
+    from chembl_core_model.models import ComponentXref
+try:
     from chembl_compatibility.models import TargetXref
 except ImportError:
     from chembl_core_model.models import TargetXref
@@ -79,6 +83,26 @@ class TargetComponentSynonyms(ChemblModelResource):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
+class TargetComponentXrefResource(ChemblModelResource):
+
+    class Meta(ChemblResourceMeta):
+        fields = [
+            'xref_src_db',
+            'xref_id',
+            'xref_name',
+        ]
+        filtering = {
+            'xref_src_db': CHAR_FILTERS,
+            'xref_id': CHAR_FILTERS,
+            'xref_name': CHAR_FILTERS,
+        }
+        queryset = ComponentXref.objects.all()
+        resource_name = 'target_component_xref'
+        collection_name = 'target_component_xrefs'
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
 class TargetComponentsResource(ChemblModelResource):
 
     accession = fields.CharField('component__accession', null=True, blank=True)
@@ -87,6 +111,8 @@ class TargetComponentsResource(ChemblModelResource):
     component_description = fields.CharField('component__description', null=True, blank=True)
     target_component_synonyms = fields.ToManyField('chembl_webservices.resources.target.TargetComponentSynonyms',
                                                    'component__componentsynonyms_set', full=True, null=True, blank=True)
+    target_component_xrefs = fields.ToManyField('chembl_webservices.resources.target.TargetComponentXrefResource',
+                                                   'component__componentxref_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         fields = [
@@ -108,6 +134,7 @@ class TargetComponentsResource(ChemblModelResource):
             Prefetch('component', queryset=ComponentSequences.objects.only('accession', 'pk', 'component_type',
                                                                            'description')),
             Prefetch('component__componentsynonyms_set'),
+            Prefetch('component__componentxref_set'),
         ]
         queryset = TargetComponents.objects.all()
         resource_name = 'target_component'
