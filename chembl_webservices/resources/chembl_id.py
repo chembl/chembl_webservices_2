@@ -88,23 +88,24 @@ class ChemblIdLookupResource(ChemblModelResource):
         """
         datas = bundle.data
         detail_name = 'api_dispatch_detail'
-        if datas['entity_type'] == 'COMPOUND':
-            datas['resource_url'] = molecule._build_reverse_url(detail_name,
-                                                                kwargs=molecule.resource_uri_kwargs(bundle))
-        elif datas['entity_type'] == 'ASSAY':
-            datas['resource_url'] = assay._build_reverse_url(detail_name,
-                                                             kwargs=assay.resource_uri_kwargs(bundle))
-        elif datas['entity_type'] == 'TARGET':
-            datas['resource_url'] = target._build_reverse_url(detail_name,
-                                                              kwargs=target.resource_uri_kwargs(bundle))
-        elif datas['entity_type'] == 'DOCUMENT':
-            datas['resource_url'] = document._build_reverse_url(detail_name,
-                                                                kwargs=document.resource_uri_kwargs(bundle))
-        elif datas['entity_type'] == 'CELL':
-            kw = cell.resource_uri_kwargs(bundle)
-            kw['cell_chembl_id'] = kw['pk']
-            del kw['pk']
-            datas['resource_url'] = cell._build_reverse_url(detail_name, kwargs=kw)
+        if datas.get('entity_type'):
+            if datas['entity_type'] == 'COMPOUND':
+                datas['resource_url'] = molecule._build_reverse_url(detail_name,
+                                                                    kwargs=molecule.resource_uri_kwargs(bundle))
+            elif datas['entity_type'] == 'ASSAY':
+                datas['resource_url'] = assay._build_reverse_url(detail_name,
+                                                                 kwargs=assay.resource_uri_kwargs(bundle))
+            elif datas['entity_type'] == 'TARGET':
+                datas['resource_url'] = target._build_reverse_url(detail_name,
+                                                                  kwargs=target.resource_uri_kwargs(bundle))
+            elif datas['entity_type'] == 'DOCUMENT':
+                datas['resource_url'] = document._build_reverse_url(detail_name,
+                                                                    kwargs=document.resource_uri_kwargs(bundle))
+            elif datas['entity_type'] == 'CELL':
+                kw = cell.resource_uri_kwargs(bundle)
+                kw['cell_chembl_id'] = kw['pk']
+                del kw['pk']
+                datas['resource_url'] = cell._build_reverse_url(detail_name, kwargs=kw)
         return bundle
 
 # ----------------------------------------------------------------------------------------------------------------------

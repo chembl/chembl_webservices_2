@@ -135,7 +135,8 @@ class ActivityResource(ChemblModelResource):
                             Prefetch('molecule__moleculehierarchy'),
                             Prefetch('molecule__moleculehierarchy__parent_molecule',
                                      queryset=MoleculeDictionary.objects.only('chembl')),
-                            Prefetch('data_validity_comment', queryset=DataValidityLookup.objects.only('description')),
+                            Prefetch('data_validity_comment',
+                                     queryset=DataValidityLookup.objects.only('description', 'data_validity_comment')),
                             ]
         fields = (
             'activity_comment',

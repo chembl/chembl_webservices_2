@@ -195,6 +195,7 @@ class TargetResource(ChemblModelResource):
                 'xref_src_db')),
             Prefetch('targetxref_set__xref_src_db', queryset=XrefSource.objects.only('pk')),
             Prefetch('targetcomponents_set__component__componentsynonyms_set'),
+            Prefetch('targetcomponents_set__component__componentxref_set'),
         ]
 
         fields = (

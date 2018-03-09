@@ -88,7 +88,8 @@ class MoleculeFormsResource(ChemblModelResource):
         Should accommodate for receiving a single bundle of data.
         """
         datas = bundle.data
-        if datas['molecule_chembl_id'] == datas['parent_chembl_id']:
+        if 'parent_chembl_id' in datas and 'molecule_chembl_id' in datas and \
+                datas['molecule_chembl_id'] == datas['parent_chembl_id']:
             datas['is_parent'] = "True"
         else:
             datas['is_parent'] = "False"
