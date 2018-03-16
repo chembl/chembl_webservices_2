@@ -141,8 +141,11 @@ class SimilarityResource(MoleculeResource):
                     only = only.split(',')
                 only = list(set(list_flatten(only)))
             objects = self.get_object_list(bundle.request).filter(pk__in=[sim[0] for sim in similar]).filter(**filters)
+            if chembl_id:
+                objects = objects.exclude(chembl_id=chembl_id)
             if only:
-                objects = objects.only(*[self.fields[field].attribute for field in only if field in self.fields and field != 'similarity'])
+                objects = objects.only(
+                    *[self.fields[field].attribute for field in only if field in self.fields and field != 'similarity'])
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
         if distinct:

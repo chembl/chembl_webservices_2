@@ -93,7 +93,8 @@ class ActivityResource(ChemblModelResource):
     bao_format = fields.CharField('assay__bao_format_id', null=True, blank=True)
     bao_label = fields.CharField('assay__bao_format__label', null=True, blank=True)
     bao_endpoint = fields.CharField('bao_endpoint_id', null=True, blank=True)
-    data_validity_comment = fields.CharField('data_validity_comment__description', null=True, blank=True)
+    data_validity_description = fields.CharField('data_validity_comment__description', null=True, blank=True)
+    data_validity_comment = fields.CharField('data_validity_comment__data_validity_comment', null=True, blank=True)
     document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
     molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
     parent_molecule_chembl_id = fields.CharField('molecule__moleculehierarchy__parent_molecule__chembl_id', null=True, blank=True)
@@ -134,7 +135,8 @@ class ActivityResource(ChemblModelResource):
                             Prefetch('molecule__moleculehierarchy'),
                             Prefetch('molecule__moleculehierarchy__parent_molecule',
                                      queryset=MoleculeDictionary.objects.only('chembl')),
-                            Prefetch('data_validity_comment', queryset=DataValidityLookup.objects.only('description')),
+                            Prefetch('data_validity_comment',
+                                     queryset=DataValidityLookup.objects.only('description', 'data_validity_comment')),
                             ]
         fields = (
             'activity_comment',

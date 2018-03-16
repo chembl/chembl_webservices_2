@@ -6,6 +6,7 @@ from tastypie.resources import ALL
 from chembl_webservices.core.resource import ChemblModelResource
 from chembl_webservices.core.meta import ChemblResourceMeta
 from chembl_webservices.core.serialization import ChEMBLApiSerializer
+from django.db.models import Prefetch
 
 try:
     from chembl_compatibility.models import MoleculeBrowseDrugs
@@ -40,7 +41,15 @@ class DrugsResource(ChemblModelResource):
         collection_name = 'drugs'
         detail_uri_name = 'chembl_id'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
-        prefetch_related = []
+        prefetch_related = [
+            Prefetch('parent'),
+            Prefetch('parent__moleculesynonyms_set'),
+            Prefetch('parent__atcclassification_set'),
+            Prefetch('parent__biotherapeutics'),
+            Prefetch('parent__biotherapeutics__bio_component_sequences'),
+            Prefetch('parent__compoundproperties'),
+            Prefetch('parent__compoundstructures'),
+        ]
         filtering = {
             'applicants': CHAR_FILTERS,
             'atc_code': CHAR_FILTERS,
@@ -97,13 +106,14 @@ class DrugsResource(ChemblModelResource):
     def alter_detail_data_to_serialize(self, request, bundle):
 
         data = bundle.data
-        data['applicants'] = map(lambda x: x.strip(), data['applicants'].split(';')) if data['applicants'] else None
-        data['research_codes'] = map(lambda x: x.strip(), data['research_codes'].split(';')) if data['research_codes'] else None
-        data['synonyms'] = map(lambda x: x.strip(), data['synonyms'].split(';')) if data['synonyms'] else None
+        data['applicants'] = map(lambda x: x.strip(), data['applicants'].split(';')) if data.get('applicants') else None
+        data['research_codes'] = map(lambda x: x.strip(), data['research_codes'].split(';')) if data.get('research_codes') else None
+        data['synonyms'] = map(lambda x: x.strip(), data['synonyms'].split(';')) if data.get('synonyms') else None
         data['atc_code_description'] = [{'code': x.split()[0], 'description': x.split('[')[1][:-1]} for x in
                                         map(lambda x: x.strip(), data['atc_code_description'].split('];'))] \
-            if data['atc_code_description'] else None
-        data['atc_classification'] = data.pop('atc_code_description')
+            if data.get('atc_code_description') else None
+        if data.get('atc_code_description'):
+            data['atc_classification'] = data.pop('atc_code_description')
         return bundle
 
 
