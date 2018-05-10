@@ -212,6 +212,7 @@ class MoleculePropertiesResource(ChemblModelResource):
             'hba_lipinski',
             'hbd_lipinski',
             'num_lipinski_ro5_violations',
+            'withdrawn_class',
         )
 
         filtering = {
@@ -238,6 +239,7 @@ class MoleculePropertiesResource(ChemblModelResource):
             'hba_lipinski': NUMBER_FILTERS,
             'hbd_lipinski': NUMBER_FILTERS,
             'num_lipinski_ro5_violations': NUMBER_FILTERS,
+            'withdrawn_class': CHAR_FILTERS,
         }
         ordering = filtering.keys()
 
