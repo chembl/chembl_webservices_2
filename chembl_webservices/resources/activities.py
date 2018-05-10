@@ -104,7 +104,7 @@ class ActivityResource(ChemblModelResource):
     target_tax_id = fields.CharField('assay__target__tax_id', null=True, blank=True)
     assay_chembl_id = fields.CharField('assay__chembl_id', null=True, blank=True)
     assay_type = fields.CharField('assay__assay_type__assay_type', null=True, blank=True)
-    src_id = fields.IntegerField('assay__src_id', null=True, blank=True)
+    src_id = fields.IntegerField('src_id', null=True, blank=True)
     assay_description = fields.CharField('assay__description', null=True, blank=True)
     document_year = fields.IntegerField('doc__year', null=True, blank=True)
     document_journal = fields.CharField('doc__journal', null=True, blank=True)
@@ -120,7 +120,7 @@ class ActivityResource(ChemblModelResource):
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         prefetch_related = [
                             Prefetch('assay', queryset=Assays.objects.only('description', 'chembl', 'assay_id',
-                                                                           'target', 'assay_type', 'src_id',
+                                                                           'target', 'assay_type',
                                                                            'bao_format')),
                             Prefetch('assay__assay_type', queryset=AssayType.objects.only('assay_type', 'assay_desc')),
                             Prefetch('assay__bao_format', queryset=BioassayOntology.objects.only('bao_id', 'label')),
@@ -162,14 +162,23 @@ class ActivityResource(ChemblModelResource):
             'published_value',
             'qudt_units',
             'record_id',
+            'relation',
             'standard_flag',
             'standard_relation',
+            'standard_text_value',
             'standard_type',
             'standard_units',
+            'standard_upper_value',
             'standard_value',
             'target_pref_name',
             'target_organism',
+            'text_value',
+            'toid',
+            'type',
+            'units',
             'uo_units',
+            'upper_value',
+            'value',
         )
         filtering = {
             'activity_comment': CHAR_FILTERS,
@@ -194,15 +203,23 @@ class ActivityResource(ChemblModelResource):
             'published_value': NUMBER_FILTERS,
             'qudt_units': CHAR_FILTERS,
             'record_id': NUMBER_FILTERS,
+            'relation': CHAR_FILTERS,
             'standard_flag': FLAG_FILTERS,
             'standard_relation': CHAR_FILTERS,
+            'standard_text_value': CHAR_FILTERS,
             'standard_type': CHAR_FILTERS,
             'standard_units': CHAR_FILTERS,
+            'standard_upper_value': NUMBER_FILTERS,
             'standard_value': NUMBER_FILTERS,
             'target_pref_name': CHAR_FILTERS,
             'target_organism': CHAR_FILTERS,
             'target_tax_id': NUMBER_FILTERS,
+            'text_value': CHAR_FILTERS,
+            'type': CHAR_FILTERS,
+            'units': CHAR_FILTERS,
             'uo_units': CHAR_FILTERS,
+            'upper_value': NUMBER_FILTERS,
+            'value': NUMBER_FILTERS,
             'ligand_efficiency': ALL_WITH_RELATIONS,
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field or
