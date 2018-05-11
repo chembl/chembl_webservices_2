@@ -79,7 +79,7 @@ class DrugsResource(ChemblModelResource):
             'withdrawn_country': CHAR_FILTERS,
             'withdrawn_reason': CHAR_FILTERS,
             'withdrawn_year': NUMBER_FILTERS,
-            'withdrawn_class': CHAR_FILTERS, 
+            'withdrawn_class': CHAR_FILTERS,
         }
         ordering = [field for field in filtering.keys() if not ('comment' in field or 'description' in field)]
 
