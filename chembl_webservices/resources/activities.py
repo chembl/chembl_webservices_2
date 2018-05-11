@@ -97,6 +97,7 @@ class ActivityResource(ChemblModelResource):
     data_validity_comment = fields.CharField('data_validity_comment__data_validity_comment', null=True, blank=True)
     document_chembl_id = fields.CharField('doc__chembl_id', null=True, blank=True)
     molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
+    molecule_pref_name = fields.CharField('molecule__pref_name', null=True, blank=True)
     parent_molecule_chembl_id = fields.CharField('molecule__moleculehierarchy__parent_molecule__chembl_id', null=True, blank=True)
     target_chembl_id = fields.CharField('assay__target__chembl_id', null=True, blank=True)
     target_pref_name = fields.CharField('assay__target__pref_name', null=True, blank=True)
@@ -153,6 +154,7 @@ class ActivityResource(ChemblModelResource):
             'document_year',
             'document_chembl_id',
             'molecule_chembl_id',
+            'molecule_pref_name',
             'parent_molecule_chembl_id',
             'pchembl_value',
             'potential_duplicate',
@@ -194,6 +196,7 @@ class ActivityResource(ChemblModelResource):
             'document_journal': CHAR_FILTERS,
             'document_year': NUMBER_FILTERS,
             'molecule_chembl_id': ALL,
+            'molecule_pref_name': CHAR_FILTERS,
             'parent_molecule_chembl_id': ALL,
             'pchembl_value': NUMBER_FILTERS,
             'potential_duplicate': FLAG_FILTERS,
