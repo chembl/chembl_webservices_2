@@ -1,6 +1,6 @@
 __author__ = 'mnowotka'
 
-from tastypie.resources import ALL
+from tastypie.resources import ALL, ALL_WITH_RELATIONS
 from tastypie import fields
 from django.conf.urls import url
 from tastypie.utils import trailing_slash
@@ -14,6 +14,10 @@ try:
     from chembl_compatibility.models import Assays
 except ImportError:
     from chembl_core_model.models import Assays
+try:
+    from chembl_compatibility.models import AssayClassification
+except ImportError:
+    from chembl_core_model.models import AssayClassification
 try:
     from chembl_compatibility.models import AssayType
 except ImportError:
@@ -62,6 +66,36 @@ monkeypatch_tastypie_field()
 # ----------------------------------------------------------------------------------------------------------------------
 
 
+class AssayClassResource(ChemblModelResource):
+
+    class Meta(ChemblResourceMeta):
+        queryset = AssayClassification.objects.all()
+        resource_name = 'assay_class'
+        collection_name = 'assay_classifications'
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        filtering = {
+            'l1': CHAR_FILTERS,
+            'l2': CHAR_FILTERS,
+            'l3': CHAR_FILTERS,
+            'class_type': CHAR_FILTERS,
+            'bao_id': CHAR_FILTERS,
+            'source': CHAR_FILTERS,
+        }
+        ordering = filtering.keys()
+
+        fields = (
+            'assay_class_id',
+            'l1',
+            'l2',
+            'l3',
+            'class_type',
+            'bao_id',
+            'source',
+        )
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+
 class AssayResource(ChemblModelResource):
 
     assay_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
@@ -79,6 +113,7 @@ class AssayResource(ChemblModelResource):
     bao_format = fields.CharField('bao_format_id', null=True, blank=True)
     bao_label = fields.CharField('bao_format__label', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
+    assay_classifications = fields.ToManyField('chembl_webservices.resources.assays.AssayClassResource', 'assayclassification_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Assays.objects.all()
@@ -86,7 +121,7 @@ class AssayResource(ChemblModelResource):
         resource_name = 'assay'
         collection_name = 'assays'
         detail_uri_name = 'chembl_id'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name, 'assay_classifications': 'assay_class'})
         prefetch_related = [Prefetch('assay_type', queryset=AssayType.objects.only('assay_type', 'assay_desc')),
                             Prefetch('cell', queryset=CellDictionary.objects.only('chembl_id')),
                             Prefetch('confidence_score', queryset=ConfidenceScoreLookup.objects.only('confidence_score', 'description')),
@@ -96,9 +131,11 @@ class AssayResource(ChemblModelResource):
                             Prefetch('target', queryset=TargetDictionary.objects.only('chembl_id')),
                             Prefetch('tissue', queryset=TissueDictionary.objects.only('chembl_id')),
                             Prefetch('bao_format', queryset=BioassayOntology.objects.only('bao_id', 'label')),
+                            Prefetch('assayclassification_set'),
                             ]
 
         fields = (
+            'assay_classifications',
             'assay_category',
             'assay_cell_type',
             'assay_chembl_id',
@@ -124,6 +161,7 @@ class AssayResource(ChemblModelResource):
         )
 
         filtering = {
+            'assay_classifications': ALL_WITH_RELATIONS,
             'assay_category': CHAR_FILTERS,
             'assay_cell_type': CHAR_FILTERS,
             'assay_chembl_id': ALL,

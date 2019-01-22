@@ -43,8 +43,6 @@ class AtcResource(ChemblModelResource):
         }
         ordering = filtering.keys()
 
-# ----------------------------------------------------------------------------------------------------------------------
-
     def get_level(self, pk):
         length = len(pk)
         if length == 7:
@@ -58,8 +56,6 @@ class AtcResource(ChemblModelResource):
         if length == 5:
             return "level4"
         raise ImmediateHttpResponse(response=http.HttpNotFound())
-
-# ----------------------------------------------------------------------------------------------------------------------
 
     def obj_get_list(self, bundle, **kwargs):
         """
@@ -93,8 +89,6 @@ class AtcResource(ChemblModelResource):
                 raise e
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
-
-# ----------------------------------------------------------------------------------------------------------------------
 
     def get_detail_impl(self, request, basic_bundle, **kwargs):
         """

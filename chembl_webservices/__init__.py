@@ -20,16 +20,17 @@ except AttributeError:
 
 api = ChEMBLApi(api_name=api_name)
 
+
 class WebServicesConfig(AppConfig):
     name = 'chembl_webservices'
 
     def ready(self):
 
-
         from chembl_webservices.resources.activities import ActivityResource
         from chembl_webservices.resources.docs import DocsResource
         from chembl_webservices.resources.atc import AtcResource
         from chembl_webservices.resources.assays import AssayResource
+        from chembl_webservices.resources.assays import AssayClassResource
         from chembl_webservices.resources.binding_site import BindingSiteResource
         from chembl_webservices.resources.binding_site import SiteComponentsResource
         from chembl_webservices.resources.binding_site import ComponentDomainsResource
@@ -66,6 +67,7 @@ class WebServicesConfig(AppConfig):
         api.register(ActivityResource())
         api.register(AtcResource())
         api.register(AssayResource())
+        api.register(AssayClassResource())
         api.register(BindingSiteResource())
         api.register(BiotherapeuticComponentsResource())
         api.register(CellLineResource())
