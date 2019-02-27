@@ -27,6 +27,7 @@ class WebServicesConfig(AppConfig):
     def ready(self):
 
         from chembl_webservices.resources.activities import ActivityResource
+        from chembl_webservices.resources.activities import ActivitySuppByActivityResource
         from chembl_webservices.resources.docs import DocsResource
         from chembl_webservices.resources.atc import AtcResource
         from chembl_webservices.resources.assays import AssayResource
@@ -65,6 +66,7 @@ class WebServicesConfig(AppConfig):
         api.register(StatusResource())
         api.register(DocsResource())
         api.register(ActivityResource())
+        api.register(ActivitySuppByActivityResource())
         api.register(AtcResource())
         api.register(AssayResource())
         api.register(AssayClassResource())
