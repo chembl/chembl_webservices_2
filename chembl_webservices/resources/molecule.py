@@ -140,6 +140,12 @@ class MoleculeSynonymsResource(ChemblModelResource):
         collection_name = 'molecule_synonyms'
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
 
+        filtering = {
+            'molecule_synonym': CHAR_FILTERS,
+            'syn_type': CHAR_FILTERS,
+            'synonyms': CHAR_FILTERS,
+        }
+
 # ----------------------------------------------------------------------------------------------------------------------
 
 
@@ -345,6 +351,7 @@ _SMILES_.
         filtering = {
             'availability_type': CHAR_FILTERS,
             'biotherapeutic': ALL_WITH_RELATIONS,
+            'molecule_synonyms': ALL_WITH_RELATIONS,
             'black_box_warning': FLAG_FILTERS,
             'chebi_par_id': NUMBER_FILTERS,
             'chirality': NUMBER_FILTERS,

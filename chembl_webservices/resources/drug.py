@@ -1,6 +1,7 @@
 __author__ = 'mnowotka'
 
 from chembl_webservices.core.utils import NUMBER_FILTERS, CHAR_FILTERS, FLAG_FILTERS
+from tastypie.resources import ALL, ALL_WITH_RELATIONS
 from tastypie import fields
 from tastypie.resources import ALL
 from chembl_webservices.core.resource import ChemblModelResource
@@ -53,6 +54,7 @@ class DrugsResource(ChemblModelResource):
         filtering = {
             'applicants': CHAR_FILTERS,
             'atc_code': CHAR_FILTERS,
+            'molecule_synonyms': ALL_WITH_RELATIONS,
             'atc_code_description': CHAR_FILTERS,
             'availability_type': NUMBER_FILTERS,
             'black_box': FLAG_FILTERS,
