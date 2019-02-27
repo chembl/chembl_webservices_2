@@ -8,6 +8,9 @@ import re
 import hotshot, hotshot.stats
 import tempfile
 import StringIO
+from django.db import connection
+from django.conf import settings
+import os
 
 from django.conf import settings
 
@@ -18,6 +21,7 @@ group_prefix_re = [
     re.compile( "^(.*)/[^/]+$" ), # extract module path
     re.compile( ".*" ),           # catch strange entries
 ]
+
 
 class ProfileMiddleware(object):
     """
@@ -112,9 +116,6 @@ class ProfileMiddleware(object):
 
         return response
 
-from django.db import connection
-from django.conf import settings
-import os
 
 def terminal_width():
     """
@@ -139,7 +140,11 @@ def terminal_width():
         width = 80
     return width
 
+
 class SqlPrintingMiddleware(object):
+
+    sql_format_regex = re.compile(r'\b(select|from|where|group|having|order)\b', re.IGNORECASE)
+    sql_indent_format_regex = re.compile(r'(,(?!\s:arg)|\bjoin\b|\bor\b|\band\b)', re.IGNORECASE)
     """
     Middleware which prints out a list of all SQL queries done
     for each view that is processed.  This is only useful for debugging.
@@ -147,16 +152,19 @@ class SqlPrintingMiddleware(object):
     def process_response(self, request, response):
         indentation = 2
         if len(connection.queries) > 0 and settings.DEBUG:
-            width = terminal_width()
             total_time = 0.0
             for query in connection.queries:
-                nice_sql = query['sql'].replace('"', '').replace(',',', ')
-                sql = "\033[1;31m[%s]\033[0m %s" % (query['time'], nice_sql)
+                sql_parts = query['sql'].split("' - PARAMS = ")
+                sql_string = sql_parts[0].replace("QUERY = u'", '')
+                sql_string = SqlPrintingMiddleware.sql_format_regex.sub('\n\\1', sql_string)
+                sql_string = SqlPrintingMiddleware.sql_indent_format_regex.sub('\\1\n    ', sql_string)
+                print "QUERY TIME: %s secs" % query['time']
+                print 'QUERY:' + sql_string + '\n'
+                if len(sql_parts) > 1:
+                    print 'PARAMS:\n' + sql_parts[1] + '\n'
                 total_time = total_time + float(query['time'])
-                while len(sql) > width-indentation:
-                    print "%s%s" % (" "*indentation, sql[:width-indentation])
-                    sql = sql[width-indentation:]
-                print "%s%s\n" % (" "*indentation, sql)
+
             replace_tuple = (" "*indentation, str(total_time))
             print "%s\033[1;32m[TOTAL TIME: %s seconds]\033[0m" % replace_tuple
+
         return response
