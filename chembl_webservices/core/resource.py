@@ -63,8 +63,6 @@ except AttributeError:
 
 class ChemblModelResource(ModelResource):
 
-# ----------------------------------------------------------------------------------------------------------------------
-
     def __init__(self):
         self.log = logging.getLogger(__name__)
         super(ModelResource, self).__init__()
@@ -617,7 +615,6 @@ class ChemblModelResource(ModelResource):
                 raise e
         except ValueError:
             raise BadRequest("Invalid resource lookup data provided (mismatched type).")
-
 
 
 # ----------------------------------------------------------------------------------------------------------------------
