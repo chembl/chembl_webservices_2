@@ -19,6 +19,10 @@ try:
 except ImportError:
     from chembl_core_model.models import AssayClassification
 try:
+    from chembl_compatibility.models import AssayParameters
+except ImportError:
+    from chembl_core_model.models import AssayParameters
+try:
     from chembl_compatibility.models import AssayType
 except ImportError:
     from chembl_core_model.models import AssayType
@@ -96,6 +100,44 @@ class AssayClassResource(ChemblModelResource):
 # ----------------------------------------------------------------------------------------------------------------------
 
 
+class AssayParametersResource(ChemblModelResource):
+    class Meta(ChemblResourceMeta):
+        queryset = AssayParameters.objects.all()
+        resource_name = 'assay_parameters'
+        collection_name = 'assay_parameters'
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
+
+        filtering = {
+            'type': CHAR_FILTERS,
+            'relation': CHAR_FILTERS,
+            'value': NUMBER_FILTERS,
+            'units': CHAR_FILTERS,
+            'standard_type': CHAR_FILTERS,
+            'standard_relation': CHAR_FILTERS,
+            'standard_value': CHAR_FILTERS,
+            'standard_units': CHAR_FILTERS,
+            'standard_type_fixed': CHAR_FILTERS,
+            'active': NUMBER_FILTERS,
+        }
+        ordering = filtering.keys()
+
+        fields = (
+            'type',
+            'relation',
+            'value',
+            'units',
+            'text_value',
+            'standard_type',
+            'standard_relation',
+            'standard_value',
+            'standard_units',
+            'standard_text_value',
+            'comments',
+            'standard_type_fixed',
+            'active',
+        )
+
+
 class AssayResource(ChemblModelResource):
 
     assay_chembl_id = fields.CharField('chembl_id', null=True, blank=True)
@@ -114,6 +156,7 @@ class AssayResource(ChemblModelResource):
     bao_label = fields.CharField('bao_format__label', null=True, blank=True)
     score = fields.FloatField('score', use_in='search', null=True, blank=True)
     assay_classifications = fields.ToManyField('chembl_webservices.resources.assays.AssayClassResource', 'assayclassification_set', full=True, null=True, blank=True)
+    assay_parameters = fields.ToManyField('chembl_webservices.resources.assays.AssayParametersResource', 'assayparameters_set', full=True, null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = Assays.objects.all()
@@ -121,7 +164,7 @@ class AssayResource(ChemblModelResource):
         resource_name = 'assay'
         collection_name = 'assays'
         detail_uri_name = 'chembl_id'
-        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name, 'assay_classifications': 'assay_class'})
+        serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name, 'assay_classifications': 'assay_class', 'assay_parameters': 'assay_parameters'})
         prefetch_related = [Prefetch('assay_type', queryset=AssayType.objects.only('assay_type', 'assay_desc')),
                             Prefetch('cell', queryset=CellDictionary.objects.only('chembl_id')),
                             Prefetch('confidence_score', queryset=ConfidenceScoreLookup.objects.only('confidence_score', 'description')),
@@ -132,6 +175,7 @@ class AssayResource(ChemblModelResource):
                             Prefetch('tissue', queryset=TissueDictionary.objects.only('chembl_id')),
                             Prefetch('bao_format', queryset=BioassayOntology.objects.only('bao_id', 'label')),
                             Prefetch('assayclassification_set'),
+                            Prefetch('assayparameters_set'),
                             ]
 
         fields = (
@@ -161,6 +205,7 @@ class AssayResource(ChemblModelResource):
         )
 
         filtering = {
+            'assay_parameters': ALL_WITH_RELATIONS,
             'assay_classifications': ALL_WITH_RELATIONS,
             'assay_category': CHAR_FILTERS,
             'assay_cell_type': CHAR_FILTERS,
