@@ -490,8 +490,18 @@ class ChemblModelResource(ModelResource):
                             try:
                                 slice = list(slice)
                                 if slice:
-                                    self._meta.cache.set(page.get('cache_key'), {'slice': slice,
-                                                                                 'count': meta.get('total_count')})
+                                    cache_args = self._get_cache_args()
+                                    cache_data = {
+                                        'slice': slice,
+                                        'count': meta.get('total_count'),
+                                        'offset': offset,
+                                        'url': request.path,
+                                        'slice_length': len(slice)
+                                    }
+                                    cache_data.update(cache_args)
+                                    self._meta.cache.set(
+                                        page.get('cache_key'), cache_data
+                                    )
                             except Exception:
                                 self.log.error('Caching set exception', exc_info=True, extra={'bundle': request.path, })
                                 get_failed = False
@@ -637,7 +647,7 @@ class ChemblModelResource(ModelResource):
 
 # ----------------------------------------------------------------------------------------------------------------------
 
-    def detail_cache_handler(self,f):
+    def detail_cache_handler(self, f):
 
         def handle(bundle, cache_key, **kwargs):
             """
