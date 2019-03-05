@@ -490,15 +490,15 @@ class ChemblModelResource(ModelResource):
                             try:
                                 slice = list(slice)
                                 if slice:
-                                    cache_args = self._get_cache_args()
-                                    cache_data = {
+                                    cache_data = self._get_cache_args()
+                                    # overwrite the default ones
+                                    cache_data.update({
                                         'slice': slice,
                                         'count': meta.get('total_count'),
                                         'offset': offset,
                                         'url': request.path,
                                         'slice_length': len(slice)
-                                    }
-                                    cache_data.update(cache_args)
+                                    })
                                     self._meta.cache.set(
                                         page.get('cache_key'), cache_data
                                     )
