@@ -85,6 +85,7 @@ class MechanismResource(ChemblModelResource):
     action_type = fields.CharField('action_type_id', null=True, blank=True)
     mechanism_refs = fields.ToManyField('chembl_webservices.resources.mechanism.MechanismRefsResource',
                                         'mechanismrefs_set', full=True, null=True, blank=True)
+    parent_molecule_chembl_id = fields.CharField('molecule__moleculehierarchy__parent_molecule__chembl_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = DrugMechanism.objects.all()
@@ -94,7 +95,10 @@ class MechanismResource(ChemblModelResource):
         prefetch_related = [
             Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl', 'max_phase')),
             Prefetch('target', queryset=TargetDictionary.objects.only('chembl')),
-            Prefetch('mechanismrefs_set')
+            Prefetch('mechanismrefs_set'),
+            Prefetch('molecule__moleculehierarchy'),
+            Prefetch('molecule__moleculehierarchy__parent_molecule',
+                     queryset=MoleculeDictionary.objects.only('chembl')),
         ]
 
         fields = (
@@ -112,6 +116,7 @@ class MechanismResource(ChemblModelResource):
             'selectivity_comment',
             'site_id',
             'target_chembl_id',
+            'parent_molecule_chembl_id'
         )
 
         filtering = {
@@ -125,6 +130,7 @@ class MechanismResource(ChemblModelResource):
             'mechanism_of_action': CHAR_FILTERS,
             'molecular_mechanism': FLAG_FILTERS,
             'molecule_chembl_id': ALL,
+            'parent_molecule_chembl_id': ALL,
             'record_id' : NUMBER_FILTERS,
 #            'selectivity_comment': ALL,
             'site_id': NUMBER_FILTERS,

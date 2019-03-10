@@ -57,6 +57,7 @@ class DrugIndicationResource(ChemblModelResource):
     molecule_chembl_id = fields.CharField('molecule__chembl_id', null=True, blank=True)
     indication_refs = fields.ToManyField('chembl_webservices.resources.indication.IndicationRefsResource',
                                          'indicationrefs_set', full=True, null=True, blank=True)
+    parent_molecule_chembl_id = fields.CharField('molecule__moleculehierarchy__parent_molecule__chembl_id', null=True, blank=True)
 
     class Meta(ChemblResourceMeta):
         queryset = DrugIndication.objects.all()
@@ -67,7 +68,11 @@ class DrugIndicationResource(ChemblModelResource):
         serializer = ChEMBLApiSerializer(resource_name, {collection_name: resource_name})
         prefetch_related = [
             Prefetch('molecule', queryset=MoleculeDictionary.objects.only('chembl')),
-            'indicationrefs_set']
+            'indicationrefs_set',
+            Prefetch('molecule__moleculehierarchy'),
+            Prefetch('molecule__moleculehierarchy__parent_molecule',
+                     queryset=MoleculeDictionary.objects.only('chembl')),
+        ]
 
         fields = (
             'drugind_id',
@@ -78,11 +83,13 @@ class DrugIndicationResource(ChemblModelResource):
             'efo_id',
             'efo_term',
             'indication_refs',
+            'parent_molecule_chembl_id',
         )
 
         filtering = {
             'drugind_id': NUMBER_FILTERS,
             'molecule_chembl_id': ALL,
+            'parent_molecule_chembl_id': ALL,
             'max_phase_for_ind': NUMBER_FILTERS,
             'mesh_id': CHAR_FILTERS,
             'mesh_heading': CHAR_FILTERS,
