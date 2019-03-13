@@ -90,9 +90,9 @@ class MoleculeFormsResource(ChemblModelResource):
         datas = bundle.data
         if 'parent_chembl_id' in datas and 'molecule_chembl_id' in datas and \
                 datas['molecule_chembl_id'] == datas['parent_chembl_id']:
-            datas['is_parent'] = "True"
+            datas['is_parent'] = True
         else:
-            datas['is_parent'] = "False"
+            datas['is_parent'] = False
         return bundle
 
 # ----------------------------------------------------------------------------------------------------------------------
